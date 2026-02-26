@@ -1,15 +1,23 @@
 name: Claude — Draft Requirements
 
-# Fires automatically whenever a new issue is opened.
-# Claude reads the issue and posts a structured requirements breakdown.
+# Fires automatically whenever a new issue is opened OR when a comment is added to an issue.
+# Claude reads the entire thread and posts an updated requirements breakdown.
 # No @claude mention needed — this is fully automatic.
 
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 jobs:
   requirements:
+    # Run on new issues, OR on issue comments (not PR comments, not bot comments)
+    if: |
+      (github.event_name == 'issues') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request == null &&
+       github.event.comment.user.type != 'Bot')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,8 +31,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           direct_prompt: |
-            A new GitHub issue has been opened. Read CLAUDE.md and AGENTS.md to understand
-            the project, then post a comment on this issue with the following structure
+            Read CLAUDE.md to understand the project. Then read ALL comments on this issue
+            to get the full context of the discussion so far.
+
+            Post (or update your previous) comment on this issue with the following structure
             (use this exact markdown format):
 
             ---
@@ -42,7 +52,7 @@ jobs:
             | `src/...` | [description] |
 
             **Open Questions**
-            - [Any ambiguity you need the user to clarify before implementing]
+            - [Any ambiguity you need the user to clarify before implementing, or "None" if all questions have been answered in the thread]
 
             ---
             > When you're ready for implementation, comment `@claude implement` on this issue.
@@ -52,4 +62,6 @@ jobs:
             - If the issue is a bug report, add a "Root Cause Hypothesis" section.
             - If the issue asks for a new Garmin data source, note which garmin-connect
               method to use and what type to add to src/types/index.ts.
+            - If this is triggered by a new comment, incorporate any answers/clarifications
+              from the thread into the updated requirements.
             - Keep the whole comment under 400 words.
