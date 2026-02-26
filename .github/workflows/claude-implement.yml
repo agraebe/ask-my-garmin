@@ -1,0 +1,70 @@
+name: Claude — Implement
+
+# Fires when the user explicitly tags @claude in:
+#   - an issue comment  (most common: "@claude implement")
+#   - a PR review comment  (most common: "@claude fix the lint error")
+#   - a PR review body
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  implement:
+    if: |
+      (github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' &&
+        contains(github.event.review.body, '@claude'))
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push branches
+      pull-requests: write  # open / comment on PRs
+      issues: write         # comment on issues
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so Claude can branch from the right point
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          custom_instructions: |
+            Read CLAUDE.md and AGENTS.md before writing a single line of code.
+
+            Implementation checklist (complete in order):
+            1. Understand the issue / comment that triggered you.
+            2. Make the minimal changes needed — do not refactor unrelated code.
+            3. Add new TypeScript types to src/types/index.ts (never inline).
+            4. For any new Garmin data calls, use getClient() in src/lib/garmin.ts
+               and Promise.allSettled — never Promise.all.
+            5. Run `npx tsc --noEmit` — fix all errors before continuing.
+            6. Run `npm run lint` — fix all warnings before continuing.
+            7. Run `npm run build` — must succeed.
+            8. Open a PR that:
+               - Uses the PR template (.github/PULL_REQUEST_TEMPLATE.md)
+               - Includes "Closes #<issue-number>" in the body
+               - Has a clear, imperative title (≤ 70 chars)
+
+            Hard rules:
+            - Never commit .env or any real credentials.
+            - Never use Promise.all for Garmin API calls.
+            - Never add 'use client' to a component that doesn't need it.
+            - Never move API routes to Edge runtime.
+            - Never add console.log in production code paths.

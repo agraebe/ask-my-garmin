@@ -1,0 +1,54 @@
+name: Claude — Draft Requirements
+
+# Fires automatically whenever a new issue is opened.
+# Claude reads the issue and posts a structured requirements breakdown.
+# No @claude mention needed — this is fully automatic.
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  requirements:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            A new GitHub issue has been opened. Read CLAUDE.md and AGENTS.md to understand
+            the project, then post a comment on this issue with the following structure
+            (use this exact markdown format):
+
+            ---
+            ## 📋 Requirements Analysis
+
+            **Goal:** [one sentence restatement of what the user wants]
+
+            **Acceptance Criteria**
+            - [ ] [concrete, testable criterion]
+            - [ ] [concrete, testable criterion]
+
+            **Files Likely Affected**
+            | File | Change needed |
+            |---|---|
+            | `src/...` | [description] |
+
+            **Open Questions**
+            - [Any ambiguity you need the user to clarify before implementing]
+
+            ---
+            > When you're ready for implementation, comment `@claude implement` on this issue.
+
+            Rules:
+            - Do NOT write any code. This is planning only.
+            - If the issue is a bug report, add a "Root Cause Hypothesis" section.
+            - If the issue asks for a new Garmin data source, note which garmin-connect
+              method to use and what type to add to src/types/index.ts.
+            - Keep the whole comment under 400 words.

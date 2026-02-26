@@ -1,0 +1,61 @@
+name: Claude — Review PR
+
+# Fires automatically on every non-draft PR open or new push.
+# Claude posts a thorough code review as a PR review (not just a comment).
+# This runs on Claude's own PRs too — self-review is intentional and useful.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            Read CLAUDE.md and AGENTS.md, then perform a thorough code review of this PR.
+
+            Review checklist — flag any violation with a specific file + line reference:
+
+            **Correctness**
+            - [ ] TypeScript strict mode: no `any`, no `@ts-ignore` without explanation
+            - [ ] New shared types go in src/types/index.ts, not inline
+            - [ ] `Promise.allSettled` used for ALL groups of Garmin API calls (never Promise.all)
+            - [ ] No `console.log` in production code paths
+
+            **Security**
+            - [ ] No credentials, API keys, or tokens appear in any committed file
+            - [ ] API routes never return raw Garmin session data to the client
+            - [ ] No new `.env`-style files committed
+
+            **Architecture**
+            - [ ] `garmin-connect` imported only through `src/lib/garmin.ts`
+            - [ ] API routes stay in `src/app/api/` and use Node.js runtime (not Edge)
+            - [ ] `'use client'` only on components that genuinely need browser APIs
+
+            **Style**
+            - [ ] Tailwind utility classes only (no inline style=, no CSS modules)
+            - [ ] Brand colors use `garmin-blue` / `garmin-dark` tokens
+
+            **PR hygiene**
+            - [ ] PR description explains *why*, not just *what*
+            - [ ] "Closes #issue" link present if this fixes an issue
+            - [ ] PR template checklist items checked off
+
+            Post your review as a PR review (APPROVE, REQUEST_CHANGES, or COMMENT).
+            - Approve only if all checklist items pass.
+            - Request changes if any hard rule from CLAUDE.md is violated.
+            - Comment if you have suggestions but nothing blocking.
+            Be specific and direct. Reference exact file paths and line numbers.

@@ -71,10 +71,56 @@ minimum bars for any change.
 - Credentials must not leak to the client. API routes return only processed data.
 - The Garmin singleton login happens server-side only.
 
+## Mobile-first development workflow
+
+This project is designed to be developed entirely from a phone via the GitHub app.
+There is no local dev loop for the owner — all work is done through GitHub Issues and PRs.
+
+```text
+ [You on phone]          [GitHub Actions — automatic]
+       │
+       ▼
+ Open an Issue
+ (use a template)
+       │
+       └──────────────────► claude-requirements.yml fires
+                             Claude posts requirements breakdown
+                             as an issue comment
+       │
+       ▼
+ Read requirements,
+ ask follow-up Qs,
+ or comment:
+ "@claude implement"
+       │
+       └──────────────────► claude-implement.yml fires
+                             Claude writes code, runs tsc + lint + build,
+                             opens a PR (closes the issue)
+       │
+       └──────────────────► claude-review.yml fires (auto on PR open)
+                             Claude posts a thorough code review
+       │
+       ▼
+ Review the PR + Claude's
+ review in GitHub app.
+ Merge or request changes.
+```
+
+### Triggering Claude
+
+| What you type | Where | What happens |
+| --- | --- | --- |
+| *(nothing — just open issue)* | New issue | Requirements drafted automatically |
+| `@claude implement` | Issue comment | Claude codes + opens a PR |
+| `@claude fix the lint error` | PR review comment | Claude pushes a fix commit |
+| `@claude [any instruction]` | Issue or PR comment | Claude acts on the instruction |
+
 ## Scope limits for autonomous agents
+
 Agents operating via GitHub Actions (e.g., on `@claude` mentions) should:
 
 **Feel free to:**
+
 - Fix TypeScript errors and ESLint warnings
 - Add new Garmin data sources (following the pattern in `src/lib/garmin.ts`)
 - Improve UI components (styling, accessibility, UX)
@@ -83,12 +129,14 @@ Agents operating via GitHub Actions (e.g., on `@claude` mentions) should:
 - Refactor within existing files while preserving public API surfaces
 
 **Ask before:**
+
 - Changing the Claude model or system prompt in `api/ask/route.ts`
 - Adding new npm dependencies
 - Restructuring the `src/` directory layout
 - Modifying `.github/workflows/`
 
 **Never do:**
+
 - Commit or log real credentials
 - Move API routes to Edge runtime
 - Replace `Promise.allSettled` with `Promise.all` on Garmin calls
