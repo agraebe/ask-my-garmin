@@ -12,7 +12,7 @@ describe('SuggestedQuestions', () => {
   it('renders suggestion buttons', () => {
     render(<SuggestedQuestions onSelect={vi.fn()} />);
     expect(screen.getByText(/miles did I run/i)).toBeInTheDocument();
-    expect(screen.getByText(/steps did I take/i)).toBeInTheDocument();
+    expect(screen.getByText(/half marathon/i)).toBeInTheDocument();
     expect(screen.getByText(/sleep last night/i)).toBeInTheDocument();
   });
 
@@ -32,7 +32,9 @@ describe('SuggestedQuestions', () => {
     const onSelect = vi.fn();
     render(<SuggestedQuestions onSelect={onSelect} />);
 
-    await user.click(screen.getByText('How did I sleep last night?'));
-    expect(onSelect).toHaveBeenCalledWith('How did I sleep last night?');
+    await user.click(screen.getByText(/how did I sleep last night/i));
+    expect(onSelect).toHaveBeenCalledWith(
+      'How did I sleep last night and how is my recovery today?'
+    );
   });
 });

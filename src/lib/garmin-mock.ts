@@ -3,14 +3,13 @@
  * Provides realistic-looking fixture data so the app is fully functional
  * without real Garmin credentials (e.g. in CI, staging, or local demo mode).
  */
-import type { 
-  GarminActivity, 
-  GarminDailyStats, 
+import type {
+  GarminActivity,
+  GarminDailyStats,
   GarminSleepData,
   GarminTrainingLoad,
   GarminHeartRateZones,
   GarminRecoveryMetrics,
-  GarminDataSync
 } from '@/types';
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -20,6 +19,12 @@ function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+function dateStr(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
 }
 
 export const MOCK_ACTIVITIES: GarminActivity[] = [
@@ -136,7 +141,7 @@ export const MOCK_ACTIVITIES: GarminActivity[] = [
     averageHeartRate: 150,
     maxHeartRate: 172,
     trainingStressScore: 95,
-    intensityFactor: 0.80,
+    intensityFactor: 0.8,
     normalizedPower: 185,
     calories: 920,
   },
@@ -168,6 +173,57 @@ export const MOCK_SLEEP_DATA: GarminSleepData = {
   hrvStatus: 'BALANCED',
 };
 
+// Training load for the past 30 days computed from mock activities
+export const MOCK_TRAINING_LOAD: GarminTrainingLoad[] = Array.from({ length: 30 }, (_, i) => {
+  const baseLoad = 40 + Math.sin(i / 7) * 15;
+  const ctl = baseLoad + (Math.random() - 0.5) * 10;
+  const atl = ctl * (0.8 + Math.random() * 0.4);
+  return {
+    date: dateStr(29 - i),
+    acuteTrainingLoad: Math.round(atl),
+    chronicTrainingLoad: Math.round(ctl),
+    trainingStressBalance: Math.round(ctl - atl),
+    rampRate: Math.round((atl / ctl - 1) * 100),
+  };
+});
+
+export const MOCK_HEART_RATE_ZONES: GarminHeartRateZones = {
+  zone1Min: 50,
+  zone1Max: 122, // ~65% of 188 max HR
+  zone2Min: 122,
+  zone2Max: 141, // ~75%
+  zone3Min: 141,
+  zone3Max: 160, // ~85%
+  zone4Min: 160,
+  zone4Max: 178, // ~95%
+  zone5Min: 178,
+  zone5Max: 188,
+  lactateThreshold: 163,
+  maxHeartRate: 188,
+};
+
+// Recovery metrics for the past 7 days derived from sleep quality
+export const MOCK_RECOVERY_METRICS: GarminRecoveryMetrics[] = Array.from({ length: 7 }, (_, i) => {
+  const sleepScore = 60 + Math.round(Math.sin(i / 2) * 18 + Math.random() * 10);
+  const hrv = 50 + Math.round(Math.sin(i / 3) * 12 + Math.random() * 8);
+  const readiness: GarminRecoveryMetrics['trainingReadiness'] =
+    sleepScore >= 80
+      ? 'optimal'
+      : sleepScore >= 65
+        ? 'high'
+        : sleepScore >= 50
+          ? 'moderate'
+          : 'low';
+  return {
+    date: dateStr(6 - i),
+    sleepScore,
+    avgOvernightHrv: hrv,
+    hrvStatus: hrv >= 60 ? 'BALANCED' : hrv >= 45 ? 'LOW' : 'UNBALANCED',
+    restingHeartRate: 52 + Math.round((Math.random() - 0.5) * 6),
+    trainingReadiness: readiness,
+  };
+});
+
 export function getMockActivities(limit = 10): GarminActivity[] {
   return MOCK_ACTIVITIES.slice(0, limit);
 }
@@ -184,79 +240,6 @@ export function getMockConnectionStatus(): { ok: boolean; email: string } {
   return { ok: true, email: 'demo@example.com' };
 }
 
-// Training load data for the past 30 days
-export const MOCK_TRAINING_LOAD: GarminTrainingLoad[] = Array.from({ length: 30 }, (_, i) => {
-  const date = new Date();
-  date.setDate(date.getDate() - i);
-  
-  const baseLoad = 40 + Math.sin(i / 7) * 15; // Weekly variation
-  const chronicLoad = baseLoad + (Math.random() - 0.5) * 10;
-  const acuteLoad = chronicLoad * (0.8 + Math.random() * 0.4);
-  
-  return {
-    date: date.toISOString().split('T')[0],
-    acuteTrainingLoad: Math.round(acuteLoad),
-    chronicTrainingLoad: Math.round(chronicLoad),
-    trainingStressBalance: Math.round(chronicLoad - acuteLoad),
-    rampRate: Math.round((acuteLoad / chronicLoad - 1) * 100),
-  };
-}).reverse();
-
-export const MOCK_HEART_RATE_ZONES: GarminHeartRateZones = {
-  zone1Min: 50,
-  zone1Max: 122, // ~65% max HR
-  zone2Min: 122,
-  zone2Max: 141, // ~75% max HR
-  zone3Min: 141,
-  zone3Max: 160, // ~85% max HR
-  zone4Min: 160,
-  zone4Max: 178, // ~95% max HR
-  zone5Min: 178,
-  zone5Max: 200, // Max effort
-  lactateThreshold: 165,
-  maxHeartRate: 188,
-};
-
-// Recovery metrics for the past 14 days
-export const MOCK_RECOVERY_METRICS: GarminRecoveryMetrics[] = Array.from({ length: 14 }, (_, i) => {
-  const date = new Date();
-  date.setDate(date.getDate() - i);
-  
-  const stressVariation = Math.sin(i / 7) * 20 + Math.random() * 15;
-  const bodyBatteryBase = 75 + Math.sin(i / 3) * 20;
-  
-  return {
-    date: date.toISOString().split('T')[0],
-    stressLevel: Math.max(10, Math.min(90, 35 + stressVariation)),
-    bodyBattery: Math.max(20, Math.min(100, bodyBatteryBase + (Math.random() - 0.5) * 20)),
-    vo2Max: 44.5 + (Math.random() - 0.5) * 2,
-    fitnessAge: 28 + Math.round((Math.random() - 0.5) * 6),
-    recoveryTime: Math.max(0, Math.round(12 + stressVariation / 5 + (Math.random() - 0.5) * 8)),
-    trainingReadiness: i < 2 && stressVariation > 15 ? 'low' : 
-                      i < 5 && bodyBatteryBase > 80 ? 'optimal' : 
-                      bodyBatteryBase > 60 ? 'high' : 'moderate',
-  };
-}).reverse();
-
-export const MOCK_DATA_SYNC: GarminDataSync = {
-  lastSyncTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-  filesProcessed: {
-    activities: 47,
-    sleepFiles: 14,
-    hrFiles: 30,
-    trainingFiles: 15,
-  },
-  totalActivities: 247,
-  dateRange: {
-    earliest: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 90 days ago
-    latest: TODAY,
-  },
-  errors: [
-    'Sleep data partially corrupted for 2024-02-15',
-    'HR data gap detected for 2024-02-10 14:00-16:00',
-  ],
-};
-
 export function getMockTrainingLoad(): GarminTrainingLoad[] {
   return [...MOCK_TRAINING_LOAD];
 }
@@ -267,11 +250,4 @@ export function getMockHeartRateZones(): GarminHeartRateZones {
 
 export function getMockRecoveryMetrics(): GarminRecoveryMetrics[] {
   return [...MOCK_RECOVERY_METRICS];
-}
-
-export function getMockDataSync(): GarminDataSync {
-  return { 
-    ...MOCK_DATA_SYNC, 
-    lastSyncTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  };
 }

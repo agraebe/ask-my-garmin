@@ -14,32 +14,27 @@ describe('GarminStatus', () => {
     // Default MSW handler already returns connected: true
     render(<GarminStatus />);
     await waitFor(() => {
-      expect(screen.getByText(/connected/i)).toBeInTheDocument();
+      expect(screen.getByText('Connected')).toBeInTheDocument();
     });
   });
 
   it('shows "Not connected" when the API returns connected: false', async () => {
     server.use(
       http.get('/api/garmin/status', () =>
-        HttpResponse.json(
-          { connected: false, error: 'Invalid credentials' },
-          { status: 503 }
-        )
+        HttpResponse.json({ connected: false, error: 'Invalid credentials' }, { status: 503 })
       )
     );
     render(<GarminStatus />);
     await waitFor(() => {
-      expect(screen.getByText(/not connected/i)).toBeInTheDocument();
+      expect(screen.getByText('Not connected')).toBeInTheDocument();
     });
   });
 
   it('shows "Not connected" on a network error', async () => {
-    server.use(
-      http.get('/api/garmin/status', () => HttpResponse.error())
-    );
+    server.use(http.get('/api/garmin/status', () => HttpResponse.error()));
     render(<GarminStatus />);
     await waitFor(() => {
-      expect(screen.getByText(/not connected/i)).toBeInTheDocument();
+      expect(screen.getByText('Not connected')).toBeInTheDocument();
     });
   });
 });

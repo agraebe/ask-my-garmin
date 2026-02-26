@@ -53,16 +53,16 @@ export interface GarminSleepData {
   hrvStatus?: string;
 }
 
-// Training load and fitness metrics
+// Training load computed from activity TSS values
 export interface GarminTrainingLoad {
   date: string;
-  acuteTrainingLoad: number;
-  chronicTrainingLoad: number;
-  trainingStressBalance: number;
-  rampRate: number;
+  acuteTrainingLoad: number; // 7-day rolling average TSS
+  chronicTrainingLoad: number; // 42-day rolling average TSS
+  trainingStressBalance: number; // CTL - ATL
+  rampRate: number; // week-over-week CTL change
 }
 
-// Heart rate zones and thresholds
+// Heart rate zones derived from user's max HR in their Garmin settings
 export interface GarminHeartRateZones {
   zone1Min: number;
   zone1Max: number;
@@ -78,80 +78,20 @@ export interface GarminHeartRateZones {
   maxHeartRate: number;
 }
 
-// Recovery and wellness metrics
+// Recovery metrics derived from sleep data
 export interface GarminRecoveryMetrics {
   date: string;
-  stressLevel: number; // 0-100
-  bodyBattery: number; // 0-100
-  vo2Max: number;
-  fitnessAge: number;
-  recoveryTime: number; // hours
+  sleepScore: number; // 0-100 from Garmin sleep scoring
+  avgOvernightHrv?: number; // ms
+  hrvStatus?: string; // e.g. 'BALANCED', 'LOW', 'HIGH'
+  restingHeartRate?: number;
   trainingReadiness: 'low' | 'moderate' | 'high' | 'optimal';
 }
 
-// Comprehensive context for all Garmin data
+// Snapshot returned by /api/garmin/data
 export interface GarminContext {
   activities: GarminActivity[] | null;
   dailyStats: GarminDailyStats | null;
   sleepData: GarminSleepData | null;
-  trainingLoad: GarminTrainingLoad[] | null;
-  heartRateZones: GarminHeartRateZones | null;
-  recoveryMetrics: GarminRecoveryMetrics[] | null;
   fetchedAt: string;
-}
-
-// Data sync summary for the data explorer
-export interface GarminDataSync {
-  lastSyncTime: string;
-  filesProcessed: {
-    activities: number;
-    sleepFiles: number;
-    hrFiles: number;
-    trainingFiles: number;
-  };
-  totalActivities: number;
-  dateRange: {
-    earliest: string;
-    latest: string;
-  };
-  errors: string[];
-}
-
-// FIT file types
-export interface FitFileActivity {
-  timestamp: string;
-  sport: string;
-  subSport?: string;
-  totalTimerTime: number;
-  totalDistance?: number;
-  totalCalories?: number;
-  avgHeartRate?: number;
-  maxHeartRate?: number;
-  avgSpeed?: number;
-  maxSpeed?: number;
-  totalAscent?: number;
-  sessions: FitSession[];
-}
-
-export interface FitSession {
-  timestamp: string;
-  totalElapsedTime: number;
-  totalTimerTime: number;
-  totalDistance?: number;
-  avgSpeed?: number;
-  maxSpeed?: number;
-  avgHeartRate?: number;
-  maxHeartRate?: number;
-  laps: FitLap[];
-}
-
-export interface FitLap {
-  timestamp: string;
-  totalElapsedTime: number;
-  totalTimerTime: number;
-  totalDistance?: number;
-  avgSpeed?: number;
-  maxSpeed?: number;
-  avgHeartRate?: number;
-  maxHeartRate?: number;
 }
