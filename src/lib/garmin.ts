@@ -1,8 +1,8 @@
 import { GarminConnect } from 'garmin-connect';
-import type { GarminActivity, GarminDailySummary, GarminSleepData } from '@/types';
+import type { GarminActivity, GarminDailyStats, GarminSleepData } from '@/types';
 
-// Singleton client — reuses the authenticated session across requests in the
-// same server process (avoids logging in on every API call).
+// Singleton client — reuses the authenticated session within a warm serverless instance.
+// On Vercel, a cold start will trigger a fresh login (adds ~2-3 s on first request).
 let client: GarminConnect | null = null;
 
 async function getClient(): Promise<GarminConnect> {
@@ -12,9 +12,7 @@ async function getClient(): Promise<GarminConnect> {
   const password = process.env.GARMIN_PASSWORD;
 
   if (!email || !password) {
-    throw new Error(
-      'GARMIN_EMAIL and GARMIN_PASSWORD must be set in your .env file'
-    );
+    throw new Error('GARMIN_EMAIL and GARMIN_PASSWORD must be set in your environment');
   }
 
   client = new GarminConnect({ username: email, password });
@@ -26,28 +24,47 @@ async function getClient(): Promise<GarminConnect> {
 export async function getRecentActivities(limit = 10): Promise<GarminActivity[]> {
   const gc = await getClient();
   const activities = await gc.getActivities(0, limit);
-  return activities as GarminActivity[];
+  return activities as unknown as GarminActivity[];
 }
 
-/** Fetch the daily summary for a given date (defaults to today). */
-export async function getDailySummary(date: Date = new Date()): Promise<GarminDailySummary> {
+/**
+ * Fetch today's step count and heart rate summary.
+ * garmin-connect has no single "daily summary" endpoint — this combines two calls
+ * (getSteps + getHeartRate) with individual Promise.allSettled so one failure
+ * doesn't prevent the other from being returned.
+ */
+export async function getDailyStats(date: Date = new Date()): Promise<GarminDailyStats> {
   const gc = await getClient();
-  const summary = await gc.getDaysSummary(date);
-  return summary as GarminDailySummary;
+
+  const [stepsResult, hrResult] = await Promise.allSettled([
+    gc.getSteps(date),
+    gc.getHeartRate(date),
+  ]);
+
+  return {
+    date: date.toISOString().split('T')[0],
+    steps: stepsResult.status === 'fulfilled' ? stepsResult.value : 0,
+    restingHeartRate: hrResult.status === 'fulfilled' ? hrResult.value.restingHeartRate : undefined,
+    maxHeartRate: hrResult.status === 'fulfilled' ? hrResult.value.maxHeartRate : undefined,
+    minHeartRate: hrResult.status === 'fulfilled' ? hrResult.value.minHeartRate : undefined,
+    lastSevenDaysAvgRestingHeartRate:
+      hrResult.status === 'fulfilled' ? hrResult.value.lastSevenDaysAvgRestingHeartRate : undefined,
+  };
 }
 
 /** Fetch sleep data for a given date (defaults to last night). */
 export async function getSleepData(date: Date = new Date()): Promise<GarminSleepData> {
   const gc = await getClient();
   const sleep = await gc.getSleepData(date);
-  return sleep as GarminSleepData;
+  return sleep as unknown as GarminSleepData;
 }
 
 /** Lightweight connectivity check — throws if credentials are wrong. */
 export async function checkConnection(): Promise<{ ok: boolean; email: string }> {
   const gc = await getClient();
   const profile = await gc.getUserProfile();
-  const email = (profile as { emailAddress?: string }).emailAddress ?? process.env.GARMIN_EMAIL ?? '';
+  const email =
+    (profile as { emailAddress?: string }).emailAddress ?? process.env.GARMIN_EMAIL ?? '';
   return { ok: true, email };
 }
 

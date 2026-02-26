@@ -1,6 +1,12 @@
-import { NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getRecentActivities, getDailySummary, getSleepData, formatDuration, metersToMiles } from '@/lib/garmin';
+import {
+  getRecentActivities,
+  getDailyStats,
+  getSleepData,
+  formatDuration,
+  metersToMiles,
+} from '@/lib/garmin';
 import type { Message } from '@/types';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -38,24 +44,27 @@ export async function POST(request: NextRequest) {
   // Fetch Garmin data in parallel; surface partial data on failures
   const [activitiesResult, dailyResult, sleepResult] = await Promise.allSettled([
     getRecentActivities(10),
-    getDailySummary(),
+    getDailyStats(),
     getSleepData(),
   ]);
 
   const garminData = {
-    recentActivities: activitiesResult.status === 'fulfilled'
-      ? activitiesResult.value.map((a) => ({
-          ...a,
-          distanceMiles: metersToMiles(a.distance),
-          durationFormatted: formatDuration(a.duration),
-        }))
-      : { error: (activitiesResult.reason as Error).message },
-    todaysSummary: dailyResult.status === 'fulfilled'
-      ? dailyResult.value
-      : { error: (dailyResult.reason as Error).message },
-    lastNightSleep: sleepResult.status === 'fulfilled'
-      ? sleepResult.value
-      : { error: (sleepResult.reason as Error).message },
+    recentActivities:
+      activitiesResult.status === 'fulfilled'
+        ? activitiesResult.value.map((a) => ({
+            ...a,
+            distanceMiles: metersToMiles(a.distance),
+            durationFormatted: formatDuration(a.duration),
+          }))
+        : { error: (activitiesResult.reason as Error).message },
+    todayStats:
+      dailyResult.status === 'fulfilled'
+        ? dailyResult.value
+        : { error: (dailyResult.reason as Error).message },
+    lastNightSleep:
+      sleepResult.status === 'fulfilled'
+        ? sleepResult.value
+        : { error: (sleepResult.reason as Error).message },
   };
 
   // Build conversation history for Claude (exclude system messages)
@@ -77,10 +86,7 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       try {
         for await (const chunk of stream) {
-          if (
-            chunk.type === 'content_block_delta' &&
-            chunk.delta.type === 'text_delta'
-          ) {
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
             controller.enqueue(encoder.encode(chunk.delta.text));
           }
         }

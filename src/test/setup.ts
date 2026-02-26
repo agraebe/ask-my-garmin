@@ -1,3 +1,5 @@
+import { beforeAll, afterEach, afterAll } from 'vitest';
+
 // Extend Vitest's `expect` with jest-dom matchers (toBeInTheDocument, etc.)
 import '@testing-library/jest-dom';
 
