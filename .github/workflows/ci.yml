@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Type-check, lint & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time env vars — real secrets are not needed for a type/build check.
+          # Replace with dummy values so Next.js doesn't error on missing vars.
+          GARMIN_EMAIL: build@example.com
+          GARMIN_PASSWORD: build-placeholder
+          ANTHROPIC_API_KEY: sk-ant-build-placeholder
