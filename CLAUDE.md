@@ -8,16 +8,25 @@ answers questions by reasoning over live Garmin data injected into its context w
 ## Dev environment
 ```bash
 cp .env.example .env     # fill in GARMIN_EMAIL, GARMIN_PASSWORD, ANTHROPIC_API_KEY
-npm install
+npm install              # also runs `husky` to install git hooks
 npm run dev              # http://localhost:3000
-npm run build            # production build (must pass before merging)
-npm run lint             # ESLint
 ```
 
-TypeScript type-check (no separate `tsc` script yet):
+## Quality commands
 ```bash
-npx tsc --noEmit
+npm run typecheck        # tsc --noEmit (TypeScript strict check)
+npm run lint             # ESLint with --max-warnings=0 (zero warnings allowed)
+npm run lint:fix         # ESLint auto-fix
+npm run format           # Prettier — format all files in place
+npm run format:check     # Prettier — check only (used in CI)
+npm run test             # Vitest in watch mode
+npm run test:run         # Vitest single run (used in CI / pre-push hook)
+npm run test:coverage    # Vitest with V8 coverage report
+npm run build            # Next.js production build (must pass before merging)
 ```
+
+All of these must pass before a PR is merged. CI enforces them in order:
+`format:check` → `lint` → `typecheck` → `test:run` → `build`.
 
 ## Architecture
 
@@ -74,6 +83,41 @@ src/
 3. Include the new data in the `garminData` object in `src/app/api/ask/route.ts`
    using `Promise.allSettled`.
 4. Update the system prompt in `buildSystemPrompt` if the data needs explanation.
+
+## Testing conventions
+Tests live next to source files: `src/components/Foo.test.tsx`, `src/lib/foo.test.ts`.
+
+**What to test:**
+- All pure utility functions in `src/lib/` (no mocking needed — just import and assert)
+- All React components with `@testing-library/react` (test behaviour, not implementation)
+- Any component that calls a fetch endpoint — use MSW handlers in `src/test/msw/handlers.ts`
+
+**What NOT to test:**
+- Next.js App Router server components (test their underlying logic in lib/ instead)
+- `src/app/layout.tsx`, `src/app/globals.css` (boilerplate with no logic)
+- External libraries (garmin-connect, Anthropic SDK)
+
+**Patterns to follow:**
+```tsx
+// Always import from vitest explicitly — no globals
+import { describe, it, expect, vi } from 'vitest';
+
+// Prefer user-event over fireEvent for realistic interactions
+import userEvent from '@testing-library/user-event';
+
+// Override MSW handlers per-test when the default handler isn't right
+import { server } from '@/test/msw/server';
+server.use(http.get('/api/garmin/status', () => HttpResponse.json({ connected: false })));
+```
+
+Coverage thresholds (enforced in CI): **60% lines / functions / branches**.
+The bar rises as the codebase grows — keep new code tested.
+
+## Git hooks (Husky)
+- **pre-commit**: Prettier + ESLint auto-fix on staged files only (`lint-staged`)
+- **pre-push**: Full `tsc --noEmit` + `vitest run`
+
+Run `npm install` once after cloning to activate the hooks.
 
 ## What NOT to do
 - Do not commit `.env` or any file containing real credentials.
