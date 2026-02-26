@@ -49,6 +49,20 @@ jobs:
             - [ ] Tailwind utility classes only (no inline style=, no CSS modules)
             - [ ] Brand colors use `garmin-blue` / `garmin-dark` tokens
 
+            **Testing**
+            - [ ] New logic in src/lib/ has corresponding unit tests
+            - [ ] New components have corresponding @testing-library tests
+            - [ ] MSW handlers in src/test/msw/handlers.ts cover new API routes
+
+            **Vercel preview**
+            - Check the PR comments for a "✅ Vercel Preview Deployed" comment posted by
+              the vercel-preview-ready workflow. If the preview URL is present, note it in
+              your review and flag any specific interactions the human reviewer should
+              manually test on the live preview (e.g. "test the streaming response on
+              mobile at <url>").
+            - If the Vercel deployment comment is absent, note that the preview may still
+              be building and that manual testing is still required.
+
             **PR hygiene**
             - [ ] PR description explains *why*, not just *what*
             - [ ] "Closes #issue" link present if this fixes an issue

@@ -1,0 +1,64 @@
+name: Vercel Preview Ready
+
+# Fires whenever a Vercel deployment status changes.
+# When a Preview deployment succeeds, find the associated PR and post a comment
+# with the preview URL and a manual-testing checklist.
+
+on:
+  deployment_status: {}
+
+jobs:
+  notify:
+    # Only run for successful, non-Production deployments
+    if: |
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment != 'Production'
+
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.deployment.sha;
+            const previewUrl = context.payload.deployment_status.target_url;
+            const environment = context.payload.deployment.environment;
+
+            // Find the open PR whose head SHA matches this deployment
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const pr = pulls.data.find(p => p.head.sha === sha);
+            if (!pr) {
+              console.log('No open PR found for this deployment — skipping.');
+              return;
+            }
+
+            const body = [
+              '## ✅ Vercel Preview Deployed',
+              '',
+              `**Preview URL:** ${previewUrl}`,
+              `**Environment:** \`${environment}\``,
+              '',
+              '### Manual test checklist',
+              '- [ ] Page loads without a console error',
+              '- [ ] Garmin status indicator shows **Connected** (not "Not connected")',
+              '- [ ] Suggested questions appear on an empty chat',
+              '- [ ] Asking a question returns a streaming response',
+              '- [ ] Layout looks correct on a mobile viewport (375 px)',
+              '',
+              '_This comment is posted automatically when Vercel marks the preview as ready._',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
