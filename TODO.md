@@ -11,12 +11,7 @@ Items marked `[NICE]` are improvements worth doing but not blockers.
   (Production, Preview, Development) in the Vercel dashboard:
   - `GARMIN_EMAIL`
   - `GARMIN_PASSWORD`
-  - `ANTHROPIC_API_KEY`
     Without these, every Vercel deployment (including PR previews) will fail at runtime.
-
-- `[REQUIRED]` **Run `npm install` locally after cloning** to activate the Husky
-  pre-commit and pre-push hooks. The hooks are in `.husky/` but Husky's shims only
-  exist after running `npm install` (the `prepare` script runs `husky`).
 
 - `[NICE]` **Garmin session cold-start latency (~2–3 s)** — On every Vercel cold start,
   the singleton `client` in `src/lib/garmin.ts` is null and a fresh Garmin login is
@@ -24,15 +19,9 @@ Items marked `[NICE]` are improvements worth doing but not blockers.
   them via `client.loadToken(oauth1, oauth2)` on warm-up. The `garmin-connect` package
   supports `exportToken()` / `loadToken()`.
 
-- `[NICE]` **Region selection** — `vercel.json` currently targets `iad1` (US East).
-  Change if users are in a different region.
-
 ---
 
 ## Testing
-
-- `[REQUIRED]` **Verify the test suite runs** — `npm run test:run` has not been
-  confirmed passing yet. Run it once locally after `npm install`.
 
 - `[NICE]` **`/api/ask` has no real streaming test** — The MSW handler in
   `src/test/msw/handlers.ts` returns a simple string, not a chunked stream.

@@ -1,5 +1,14 @@
 import { GarminConnect } from 'garmin-connect';
 import type { GarminActivity, GarminDailyStats, GarminSleepData } from '@/types';
+import {
+  getMockActivities,
+  getMockDailyStats,
+  getMockSleepData,
+  getMockConnectionStatus,
+} from '@/lib/garmin-mock';
+
+// When credentials are absent the app runs in demo mode with mock data.
+const MOCK_MODE = !process.env.GARMIN_EMAIL || !process.env.GARMIN_PASSWORD;
 
 // Singleton client — reuses the authenticated session within a warm serverless instance.
 // On Vercel, a cold start will trigger a fresh login (adds ~2-3 s on first request).
@@ -8,12 +17,8 @@ let client: GarminConnect | null = null;
 async function getClient(): Promise<GarminConnect> {
   if (client) return client;
 
-  const email = process.env.GARMIN_EMAIL;
-  const password = process.env.GARMIN_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error('GARMIN_EMAIL and GARMIN_PASSWORD must be set in your environment');
-  }
+  const email = process.env.GARMIN_EMAIL!;
+  const password = process.env.GARMIN_PASSWORD!;
 
   client = new GarminConnect({ username: email, password });
   await client.login();
@@ -22,6 +27,7 @@ async function getClient(): Promise<GarminConnect> {
 
 /** Fetch the most recent activities. */
 export async function getRecentActivities(limit = 10): Promise<GarminActivity[]> {
+  if (MOCK_MODE) return getMockActivities(limit);
   const gc = await getClient();
   const activities = await gc.getActivities(0, limit);
   return activities as unknown as GarminActivity[];
@@ -34,6 +40,7 @@ export async function getRecentActivities(limit = 10): Promise<GarminActivity[]>
  * doesn't prevent the other from being returned.
  */
 export async function getDailyStats(date: Date = new Date()): Promise<GarminDailyStats> {
+  if (MOCK_MODE) return getMockDailyStats();
   const gc = await getClient();
 
   const [stepsResult, hrResult] = await Promise.allSettled([
@@ -54,6 +61,7 @@ export async function getDailyStats(date: Date = new Date()): Promise<GarminDail
 
 /** Fetch sleep data for a given date (defaults to last night). */
 export async function getSleepData(date: Date = new Date()): Promise<GarminSleepData> {
+  if (MOCK_MODE) return getMockSleepData();
   const gc = await getClient();
   const sleep = await gc.getSleepData(date);
   return sleep as unknown as GarminSleepData;
@@ -61,6 +69,7 @@ export async function getSleepData(date: Date = new Date()): Promise<GarminSleep
 
 /** Lightweight connectivity check — throws if credentials are wrong. */
 export async function checkConnection(): Promise<{ ok: boolean; email: string }> {
+  if (MOCK_MODE) return getMockConnectionStatus();
   const gc = await getClient();
   const profile = await gc.getUserProfile();
   const email =
