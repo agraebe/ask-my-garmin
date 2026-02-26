@@ -1,0 +1,103 @@
+{
+  "description": "Example parsed FIT file data for a 25-mile cycling workout",
+  "metadata": {
+    "fileType": "activity",
+    "sport": "cycling",
+    "parsedAt": "2026-02-24T15:30:00Z",
+    "originalFileSize": 23456
+  },
+  "activity": {
+    "timestamp": "2026-02-24T14:00:00Z",
+    "sport": "cycling",
+    "subSport": "road",
+    "totalTimerTime": 4200,
+    "totalDistance": 40233.6,
+    "totalCalories": 850,
+    "avgHeartRate": 145,
+    "maxHeartRate": 168,
+    "avgSpeed": 9.58,
+    "maxSpeed": 15.6,
+    "totalAscent": 280,
+    "avgPower": 210,
+    "maxPower": 420,
+    "normalizedPower": 225,
+    "sessions": [
+      {
+        "timestamp": "2026-02-24T14:00:00Z",
+        "totalElapsedTime": 4200,
+        "totalTimerTime": 4200,
+        "totalDistance": 40233.6,
+        "avgSpeed": 9.58,
+        "maxSpeed": 15.6,
+        "avgHeartRate": 145,
+        "maxHeartRate": 168,
+        "avgPower": 210,
+        "maxPower": 420,
+        "laps": [
+          {
+            "timestamp": "2026-02-24T14:00:00Z",
+            "totalElapsedTime": 1200,
+            "totalTimerTime": 1200,
+            "totalDistance": 11500,
+            "avgSpeed": 9.58,
+            "maxSpeed": 12.5,
+            "avgHeartRate": 138,
+            "maxHeartRate": 155,
+            "avgPower": 180,
+            "maxPower": 280
+          },
+          {
+            "timestamp": "2026-02-24T14:20:00Z",
+            "totalElapsedTime": 1500,
+            "totalTimerTime": 1500,
+            "totalDistance": 15000,
+            "avgSpeed": 10.0,
+            "maxSpeed": 15.6,
+            "avgHeartRate": 150,
+            "maxHeartRate": 168,
+            "avgPower": 235,
+            "maxPower": 420
+          },
+          {
+            "timestamp": "2026-02-24T14:45:00Z",
+            "totalElapsedTime": 1500,
+            "totalTimerTime": 1500,
+            "totalDistance": 13733.6,
+            "avgSpeed": 9.16,
+            "maxSpeed": 11.2,
+            "avgHeartRate": 148,
+            "maxHeartRate": 162,
+            "avgPower": 215,
+            "maxPower": 310
+          }
+        ]
+      }
+    ]
+  },
+  "hrZones": {
+    "zone1Time": 600,
+    "zone2Time": 2100,
+    "zone3Time": 1200,
+    "zone4Time": 300,
+    "zone5Time": 0
+  },
+  "powerZones": {
+    "zone1Time": 300,
+    "zone2Time": 1800,
+    "zone3Time": 1500,
+    "zone4Time": 480,
+    "zone5Time": 120,
+    "zone6Time": 0,
+    "zone7Time": 0
+  },
+  "gpsTrack": {
+    "hasGps": true,
+    "startLat": 40.7589,
+    "startLon": -73.9851,
+    "endLat": 40.7589,
+    "endLon": -73.9851,
+    "totalTrackPoints": 420,
+    "elevationGain": 280,
+    "elevationLoss": 275
+  }
+}

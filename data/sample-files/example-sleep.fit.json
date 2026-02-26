@@ -1,0 +1,95 @@
+{
+  "description": "Example parsed sleep data from Garmin device",
+  "metadata": {
+    "fileType": "sleep",
+    "parsedAt": "2026-02-26T08:00:00Z",
+    "originalFileSize": 5678
+  },
+  "sleepData": {
+    "calendarDate": "2026-02-25",
+    "bedtime": "2026-02-25T23:15:00Z",
+    "wakeupTime": "2026-02-26T07:23:00Z",
+    "sleepTimeSeconds": 28680,
+    "deepSleepSeconds": 5400,
+    "lightSleepSeconds": 15840,
+    "remSleepSeconds": 6480,
+    "awakeSleepSeconds": 960,
+    "sleepScores": {
+      "overall": {
+        "value": 78,
+        "qualifierKey": "GOOD"
+      },
+      "sleepQuality": {
+        "value": 82,
+        "qualifierKey": "GOOD"
+      },
+      "sleepDuration": {
+        "value": 75,
+        "qualifierKey": "FAIR"
+      },
+      "sleepRecovery": {
+        "value": 80,
+        "qualifierKey": "GOOD"
+      }
+    },
+    "restingHeartRate": 48,
+    "avgOvernightHrv": 62,
+    "hrvStatus": "BALANCED",
+    "respirationRate": 14.5,
+    "bodyBattery": {
+      "charged": 85,
+      "drained": 15,
+      "startLevel": 25,
+      "endLevel": 95
+    },
+    "stressLevel": {
+      "avgStress": 18,
+      "maxStress": 45,
+      "stressQualifier": "LOW"
+    }
+  },
+  "sleepStages": [
+    {
+      "startTime": "2026-02-25T23:15:00Z",
+      "endTime": "2026-02-25T23:45:00Z",
+      "stage": "awake",
+      "duration": 1800
+    },
+    {
+      "startTime": "2026-02-25T23:45:00Z",
+      "endTime": "2026-02-26T01:15:00Z",
+      "stage": "light",
+      "duration": 5400
+    },
+    {
+      "startTime": "2026-02-26T01:15:00Z",
+      "endTime": "2026-02-26T02:45:00Z",
+      "stage": "deep",
+      "duration": 5400
+    },
+    {
+      "startTime": "2026-02-26T02:45:00Z",
+      "endTime": "2026-02-26T04:33:00Z",
+      "stage": "rem",
+      "duration": 6480
+    },
+    {
+      "startTime": "2026-02-26T04:33:00Z",
+      "endTime": "2026-02-26T06:21:00Z",
+      "stage": "light",
+      "duration": 6480
+    },
+    {
+      "startTime": "2026-02-26T06:21:00Z",
+      "endTime": "2026-02-26T07:05:00Z",
+      "stage": "light",
+      "duration": 2640
+    },
+    {
+      "startTime": "2026-02-26T07:05:00Z",
+      "endTime": "2026-02-26T07:23:00Z",
+      "stage": "awake",
+      "duration": 1080
+    }
+  ]
+}

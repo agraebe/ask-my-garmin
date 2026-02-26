@@ -1,10 +1,16 @@
 const SUGGESTIONS = [
+  'Am I ready to run a sub-2-hour half marathon in 6 weeks?',
+  'What\'s the right easy pace for me to be running?',
+  'Why do I keep getting injured in week 8 of marathon training?',
+  'Should I do my tempo run today or rest? My HRV is down but I slept 8 hours.',
+  'Which training plan should I use given where I am right now?',
+  'I missed 10 days sick — how do I pick back up without getting injured?',
   'How many miles did I run this week?',
   'What was my average heart rate on my last workout?',
-  'How did I sleep last night?',
-  'How many steps did I take today?',
-  'What\'s my most recent activity?',
-  'How many calories did I burn today?',
+  'How did I sleep last night and how is my recovery today?',
+  'What\'s my training stress balance looking like?',
+  'How is my fitness trending over the past month?',
+  'What heart rate zones should I be training in?',
 ];
 
 interface Props {
@@ -20,7 +26,7 @@ export default function SuggestedQuestions({ onSelect }: Props) {
         </div>
         <h2 className="text-xl font-semibold text-gray-900">Ask My Garmin</h2>
         <p className="text-gray-500 mt-1 text-sm">
-          Ask anything about your health and activity data.
+          Get personalized training insights from your Garmin data using AI.
         </p>
       </div>
 

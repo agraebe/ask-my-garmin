@@ -1,10 +1,22 @@
 import { GarminConnect } from 'garmin-connect';
-import type { GarminActivity, GarminDailyStats, GarminSleepData } from '@/types';
+import type { 
+  GarminActivity, 
+  GarminDailyStats, 
+  GarminSleepData,
+  GarminTrainingLoad,
+  GarminHeartRateZones,
+  GarminRecoveryMetrics,
+  GarminDataSync
+} from '@/types';
 import {
   getMockActivities,
   getMockDailyStats,
   getMockSleepData,
   getMockConnectionStatus,
+  getMockTrainingLoad,
+  getMockHeartRateZones,
+  getMockRecoveryMetrics,
+  getMockDataSync,
 } from '@/lib/garmin-mock';
 
 // When credentials are absent the app runs in demo mode with mock data.
@@ -92,4 +104,40 @@ export function formatDuration(seconds: number): string {
 /** Convert meters to miles, rounded to 2 decimal places. */
 export function metersToMiles(m: number): number {
   return Math.round((m / 1609.344) * 100) / 100;
+}
+
+/** Fetch training load data for the past 30 days. */
+export async function getTrainingLoad(): Promise<GarminTrainingLoad[]> {
+  if (MOCK_MODE) return getMockTrainingLoad();
+  
+  // In real implementation, this would call Garmin's training load API
+  // For now, return mock data since we don't have real API access
+  return getMockTrainingLoad();
+}
+
+/** Fetch heart rate zones and lactate threshold. */
+export async function getHeartRateZones(): Promise<GarminHeartRateZones> {
+  if (MOCK_MODE) return getMockHeartRateZones();
+  
+  // In real implementation, this would call Garmin's HR zones API
+  // For now, return mock data since we don't have real API access
+  return getMockHeartRateZones();
+}
+
+/** Fetch recovery and wellness metrics for the past 14 days. */
+export async function getRecoveryMetrics(): Promise<GarminRecoveryMetrics[]> {
+  if (MOCK_MODE) return getMockRecoveryMetrics();
+  
+  // In real implementation, this would call Garmin's wellness/stress API
+  // For now, return mock data since we don't have real API access
+  return getMockRecoveryMetrics();
+}
+
+/** Get data sync summary showing what files were processed. */
+export async function getDataSyncSummary(): Promise<GarminDataSync> {
+  if (MOCK_MODE) return getMockDataSync();
+  
+  // In real implementation, this would track actual file processing
+  // For now, return mock data since we don't have real API access
+  return getMockDataSync();
 }
