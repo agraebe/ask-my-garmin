@@ -111,4 +111,52 @@ describe('ChatInterface', () => {
       expect(screen.getAllByText('How many miles did I run this week?').length).toBeGreaterThan(0);
     });
   });
+
+  describe('funMode', () => {
+    it('shows RCJ suggested questions when funMode is true', () => {
+      render(<ChatInterface funMode={true} />);
+      expect(screen.getByText('RunningCircleJerk Mode')).toBeInTheDocument();
+      expect(screen.getByText(/Vaporfly/i)).toBeInTheDocument();
+    });
+
+    it('includes fun_mode=true in POST body when funMode prop is true', async () => {
+      let capturedBody: Record<string, unknown> = {};
+      server.use(
+        http.post('/api/ask', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return new HttpResponse('RCJ response.', {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
+        })
+      );
+
+      const user = userEvent.setup();
+      render(<ChatInterface funMode={true} />);
+      await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+      await waitFor(() => {
+        expect(capturedBody.fun_mode).toBe(true);
+      });
+    });
+
+    it('includes fun_mode=false in POST body when funMode prop is false', async () => {
+      let capturedBody: Record<string, unknown> = {};
+      server.use(
+        http.post('/api/ask', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return new HttpResponse('Normal response.', {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
+        })
+      );
+
+      const user = userEvent.setup();
+      render(<ChatInterface funMode={false} />);
+      await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
+      await user.click(screen.getByRole('button', { name: /send/i }));
+      await waitFor(() => {
+        expect(capturedBody.fun_mode).toBe(false);
+      });
+    });
+  });
 });
