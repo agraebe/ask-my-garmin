@@ -1,26 +1,22 @@
 name: Claude — Draft Requirements
 
-# Fires automatically whenever a new issue is opened OR when a comment is added to an issue.
-# Claude reads the entire thread and posts an updated requirements breakdown.
-# No @claude mention needed — this is fully automatic.
+# Auto-fires once when a new issue is opened (no @claude mention needed).
+# Claude reads the issue and posts a structured requirements breakdown.
+# use_sticky_comment ensures re-runs update the existing comment rather than adding new ones.
+#
+# Does NOT fire on issue comments — follow-up discussion is handled by claude.yml
+# when the user tags @claude, or the user can trigger a re-analysis by commenting @claude.
 
 on:
   issues:
     types: [opened]
-  issue_comment:
-    types: [created]
 
 jobs:
   requirements:
-    # Run on new issues, OR on issue comments (not PR comments, not bot comments)
+    # Skip issues that already contain @claude — those go to claude.yml instead.
     if: |
-      (github.event_name == 'issues' &&
-       !contains(github.event.issue.body, '@claude') &&
-       !contains(github.event.issue.title, '@claude')) ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request == null &&
-       github.event.comment.user.type != 'Bot' &&
-       !contains(github.event.comment.body, '@claude'))
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,13 +28,11 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          direct_prompt: |
-            Read CLAUDE.md to understand the project. Then read ALL comments on this issue
-            to get the full context of the discussion so far.
+          use_sticky_comment: true
+          prompt: |
+            Read CLAUDE.md to understand the project. Then analyze this issue carefully.
 
-            Post (or update your previous) comment on this issue with the following structure
-            (use this exact markdown format):
+            Post a requirements breakdown using this exact markdown structure:
 
             ---
             ## 📋 Requirements Analysis
@@ -52,19 +46,17 @@ jobs:
             **Files Likely Affected**
             | File | Change needed |
             |---|---|
-            | `src/...` | [description] |
+            | `path/to/file` | [description] |
 
             **Open Questions**
-            - [Any ambiguity you need the user to clarify before implementing, or "None" if all questions have been answered in the thread]
+            - [Any ambiguity that needs clarification, or "None"]
 
             ---
-            > When you're ready for implementation, comment `@claude implement` on this issue.
+            > Ready to implement? Comment `@claude implement` on this issue.
 
             Rules:
-            - Do NOT write any code. This is planning only.
-            - If the issue is a bug report, add a "Root Cause Hypothesis" section.
-            - If the issue asks for a new Garmin data source, note which garmin-connect
-              method to use and what type to add to src/types/index.ts.
-            - If this is triggered by a new comment, incorporate any answers/clarifications
-              from the thread into the updated requirements.
+            - Do NOT write any code. This is analysis only.
+            - If it's a bug report, add a "Root Cause Hypothesis" section.
+            - If it involves a new Garmin data source, note which garth endpoint to call
+              and what type to add to src/types/index.ts.
             - Keep the whole comment under 400 words.

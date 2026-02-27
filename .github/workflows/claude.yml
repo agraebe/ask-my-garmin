@@ -1,5 +1,9 @@
 name: Claude Code
 
+# Single entry point for all interactive @claude requests.
+# Handles: new issues mentioning @claude, issue comments, PR review comments, PR reviews.
+# The requirements workflow handles plain new issues automatically (no @claude needed).
+
 on:
   issue_comment:
     types: [created]
@@ -22,16 +26,34 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      actions: read # Required for Claude to read CI results on PRs
+      id-token: write
+      actions: read # needed for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # full history so Claude can branch from the right base
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # No explicit github_token — lets the installed GitHub App be used automatically,
+          # so Claude's commits appear as claude[bot] and can trigger CI workflows.
+          claude_args: |
+            --append-system-prompt "Read CLAUDE.md and AGENTS.md before making any changes.
+
+            Implementation workflow:
+            1. Understand the issue / comment that triggered you.
+            2. Make minimal changes — do not refactor unrelated code.
+            3. Run: npm run typecheck && npm run lint && npm run build (all must pass).
+            4. Open a PR with 'Closes #<issue-number>' in the body, imperative title ≤ 70 chars.
+
+            Hard rules (never violate):
+            - Never commit .env or credentials.
+            - Use Promise.allSettled for all Garmin API calls — never Promise.all.
+            - Pass garth.Client to garmin_client functions — never use the global garth singleton.
+            - Never add console.log in production code paths.
+            - All TypeScript types go in src/types/index.ts — never inline.
+            - Only add 'use client' when the component genuinely needs browser APIs."
