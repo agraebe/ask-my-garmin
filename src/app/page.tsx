@@ -68,13 +68,13 @@ export default function Home() {
 
   return (
     <main className="flex h-dvh flex-col">
-      <header className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
+      <header className="flex-shrink-0 border-b border-garmin-border bg-garmin-surface px-4 py-3 sm:px-6 sm:py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-garmin-blue text-white">
               <GarminIcon />
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">Ask My Garmin</h1>
+            <h1 className="text-lg font-semibold text-garmin-text">Ask My Garmin</h1>
           </div>
 
           <GarminStatus

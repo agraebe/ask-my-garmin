@@ -17,13 +17,13 @@ interface Props {
   onSelect: (question: string) => void;
 }
 
-function GarminIcon() {
+function ActivityIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M5 12h14M13 6l6 6-6 6"
+      <polyline
+        points="2 12 6 12 8 5 10 19 13 9 15 15 17 12 22 12"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -36,10 +36,10 @@ export default function SuggestedQuestions({ onSelect }: Props) {
     <div className="flex flex-col items-center gap-6 px-3 py-8 sm:px-4 sm:py-12">
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-garmin-blue text-white sm:h-16 sm:w-16">
-          <GarminIcon />
+          <ActivityIcon />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Ask My Garmin</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-xl font-semibold text-garmin-text">Ask My Garmin</h2>
+        <p className="mt-1 text-sm text-garmin-text-muted">
           Get personalized training insights from your Garmin data using AI.
         </p>
       </div>
@@ -49,7 +49,7 @@ export default function SuggestedQuestions({ onSelect }: Props) {
           <button
             key={q}
             onClick={() => onSelect(q)}
-            className="rounded-xl border border-gray-200 bg-white px-3 py-3 text-left text-sm text-gray-700 shadow-sm transition-colors hover:border-garmin-blue hover:bg-blue-50 sm:px-4"
+            className="rounded-xl border border-garmin-border bg-garmin-surface px-3 py-3 text-left text-sm text-garmin-text shadow-sm transition-colors hover:border-garmin-blue hover:bg-garmin-surface-2 sm:px-4"
           >
             {q}
           </button>

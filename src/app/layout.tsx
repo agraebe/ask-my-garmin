@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Roboto } from 'next/font/google';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const roboto = Roboto({ subsets: ['latin'], weight: ['300', '400', '500', '700'] });
 
 export const metadata: Metadata = {
   title: 'Ask My Garmin',
@@ -12,7 +12,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>{children}</body>
+      <body className={`${roboto.className} bg-garmin-bg text-garmin-text antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }

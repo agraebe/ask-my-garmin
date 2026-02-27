@@ -98,16 +98,16 @@ export default function LoginModal({ onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl bg-garmin-surface p-8 shadow-xl">
         {/* Logo + title */}
         <div className="mb-6 flex flex-col items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-garmin-blue text-white">
             <GarminIcon size={22} />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-gray-900">Connect your Garmin account</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-xl font-semibold text-garmin-text">Connect your Garmin account</h1>
+            <p className="mt-1 text-sm text-garmin-text-muted">
               {step === 'credentials'
                 ? 'This app accesses your Garmin Connect data on your behalf.'
                 : 'Enter the code from your authenticator app or SMS'}
@@ -117,13 +117,18 @@ export default function LoginModal({ onSuccess }: Props) {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="mb-4 rounded-lg bg-red-900/30 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
         )}
 
         {step === 'credentials' ? (
           <form onSubmit={handleCredentials} className="flex flex-col gap-4">
             <div>
-              <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="login-email"
+                className="mb-1 block text-sm font-medium text-garmin-text"
+              >
                 Email
               </label>
               <input
@@ -133,13 +138,13 @@ export default function LoginModal({ onSuccess }: Props) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
+                className="w-full rounded-lg border border-garmin-border bg-garmin-bg px-4 py-2.5 text-sm text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
               />
             </div>
             <div>
               <label
                 htmlFor="login-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
+                className="mb-1 block text-sm font-medium text-garmin-text"
               >
                 Password
               </label>
@@ -150,7 +155,7 @@ export default function LoginModal({ onSuccess }: Props) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
+                className="w-full rounded-lg border border-garmin-border bg-garmin-bg px-4 py-2.5 text-sm text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
               />
             </div>
             <button
@@ -161,7 +166,7 @@ export default function LoginModal({ onSuccess }: Props) {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
             {/* Security notice */}
-            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-gray-400">
+            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-garmin-text-muted">
               <svg
                 className="h-3.5 w-3.5 flex-shrink-0"
                 fill="none"
@@ -181,7 +186,10 @@ export default function LoginModal({ onSuccess }: Props) {
         ) : (
           <form onSubmit={handleMfa} className="flex flex-col gap-4">
             <div>
-              <label htmlFor="mfa-code" className="mb-1 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="mfa-code"
+                className="mb-1 block text-sm font-medium text-garmin-text"
+              >
                 Verification code
               </label>
               <input
@@ -195,7 +203,7 @@ export default function LoginModal({ onSuccess }: Props) {
                 onChange={(e) => setMfaCode(e.target.value)}
                 autoFocus
                 placeholder="000000"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-center font-mono text-lg tracking-widest focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
+                className="w-full rounded-lg border border-garmin-border bg-garmin-bg px-4 py-2.5 text-center font-mono text-lg tracking-widest text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
               />
             </div>
             <button
@@ -212,7 +220,7 @@ export default function LoginModal({ onSuccess }: Props) {
                 setError('');
                 setMfaCode('');
               }}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-garmin-text-muted hover:text-garmin-text"
             >
               Back
             </button>
