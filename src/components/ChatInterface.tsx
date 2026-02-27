@@ -17,61 +17,66 @@ export default function ChatInterface() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = useCallback(async (question: string) => {
-    if (!question.trim() || isStreaming) return;
+  const sendMessage = useCallback(
+    async (question: string) => {
+      if (!question.trim() || isStreaming) return;
 
-    const userMessage: Message = { role: 'user', content: question };
-    const updatedHistory = [...messages, userMessage];
+      const userMessage: Message = { role: 'user', content: question };
+      const updatedHistory = [...messages, userMessage];
 
-    setMessages(updatedHistory);
-    setInput('');
-    setIsStreaming(true);
+      setMessages(updatedHistory);
+      setInput('');
+      setIsStreaming(true);
 
-    // Add a placeholder assistant message to stream into
-    const assistantPlaceholder: Message = { role: 'assistant', content: '' };
-    setMessages([...updatedHistory, assistantPlaceholder]);
+      // Add a placeholder assistant message to stream into
+      const assistantPlaceholder: Message = { role: 'assistant', content: '' };
+      setMessages([...updatedHistory, assistantPlaceholder]);
 
-    try {
-      const response = await fetch('/api/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          history: messages, // send history before the new user message
-        }),
-      });
+      try {
+        const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
+        const response = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question,
+            history: messages, // send history before the new user message
+            session_token: sessionToken,
+          }),
+        });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+        // Refresh session token if the backend rotated it (e.g. OAuth refresh)
+        const updatedToken = response.headers.get('X-Session-Token');
+        if (updatedToken) {
+          sessionStorage.setItem('garmin_session', updatedToken);
+        }
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        if (!response.body) throw new Error('No response body');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          accumulated += decoder.decode(value, { stream: true });
+          setMessages([...updatedHistory, { role: 'assistant', content: accumulated }]);
+        }
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : 'Something went wrong';
+        setMessages([...updatedHistory, { role: 'assistant', content: `Error: ${errorText}` }]);
+      } finally {
+        setIsStreaming(false);
+        inputRef.current?.focus();
       }
-
-      if (!response.body) throw new Error('No response body');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-        setMessages([
-          ...updatedHistory,
-          { role: 'assistant', content: accumulated },
-        ]);
-      }
-    } catch (err) {
-      const errorText = err instanceof Error ? err.message : 'Something went wrong';
-      setMessages([
-        ...updatedHistory,
-        { role: 'assistant', content: `Error: ${errorText}` },
-      ]);
-    } finally {
-      setIsStreaming(false);
-      inputRef.current?.focus();
-    }
-  }, [messages, isStreaming]);
+    },
+    [messages, isStreaming]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,22 +91,17 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto chat-scroll px-4 py-4">
+      <div className="chat-scroll flex-1 overflow-y-auto px-3 py-4 sm:px-6">
         {messages.length === 0 ? (
           <SuggestedQuestions onSelect={(q) => sendMessage(q)} />
         ) : (
-          <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+          <div className="mx-auto flex max-w-3xl flex-col gap-4">
             {messages.map((msg, i) => {
-              const isLastAssistant =
-                msg.role === 'assistant' && i === messages.length - 1;
+              const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1;
               return (
-                <MessageBubble
-                  key={i}
-                  message={msg}
-                  isStreaming={isStreaming && isLastAssistant}
-                />
+                <MessageBubble key={i} message={msg} isStreaming={isStreaming && isLastAssistant} />
               );
             })}
             <div ref={bottomRef} />
@@ -110,11 +110,8 @@ export default function ChatInterface() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 bg-white px-4 py-3">
-        <form
-          onSubmit={handleSubmit}
-          className="max-w-2xl mx-auto flex items-end gap-3"
-        >
+      <div className="border-t border-gray-200 bg-white px-3 py-3 sm:px-6">
+        <form onSubmit={handleSubmit} className="mx-auto flex max-w-3xl items-end gap-3">
           <textarea
             ref={inputRef}
             value={input}
@@ -123,10 +120,7 @@ export default function ChatInterface() {
             placeholder="Ask about your activities, sleep, heart rate…"
             rows={1}
             disabled={isStreaming}
-            className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm
-              focus:outline-none focus:ring-2 focus:ring-garmin-blue focus:border-transparent
-              disabled:opacity-50 disabled:cursor-not-allowed
-              max-h-32 overflow-y-auto"
+            className="max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue disabled:cursor-not-allowed disabled:opacity-50"
             style={{ minHeight: '44px' }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -137,24 +131,35 @@ export default function ChatInterface() {
           <button
             type="submit"
             disabled={!input.trim() || isStreaming}
-            className="flex-shrink-0 w-10 h-10 rounded-xl bg-garmin-blue text-white
-              flex items-center justify-center transition-opacity
-              disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-garmin-blue text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send"
           >
             {isStreaming ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
               </svg>
             )}
           </button>
         </form>
-        <p className="text-center text-xs text-gray-400 mt-2">
+        <p className="mt-2 text-center text-xs text-gray-400">
           Press Enter to send · Shift+Enter for new line
         </p>
       </div>

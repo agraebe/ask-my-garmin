@@ -26,7 +26,11 @@ export default function GarminStatus({ connected, email, onLoginClick, onLogout 
         >
           <span className="h-2 w-2 rounded-full bg-green-500" />
           <span>Connected</span>
-          {email && <span className="text-xs text-gray-400">({email})</span>}
+          {email && (
+            <span className="max-w-[120px] truncate text-xs text-gray-400 sm:max-w-none">
+              ({email})
+            </span>
+          )}
         </div>
         <button
           onClick={onLogout}
@@ -42,7 +46,7 @@ export default function GarminStatus({ connected, email, onLoginClick, onLogout 
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-2 text-sm text-red-600">
         <span className="h-2 w-2 rounded-full bg-red-500" />
-        Not connected
+        <span className="hidden sm:inline">Not connected</span>
       </div>
       <button
         onClick={onLoginClick}

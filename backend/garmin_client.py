@@ -1,12 +1,14 @@
 """
 Garmin Connect data fetching via garth.
 
-All functions call garth.connectapi(), which makes authenticated requests to
-Garmin Connect. garth handles token refresh automatically.
+All functions accept a garth.Client instance so each user's session is
+isolated — no shared global state.
 """
 
 from datetime import date, timedelta
 from typing import Any
+
+import garth
 
 
 def _today() -> str:
@@ -17,55 +19,52 @@ def _date_str(days_ago: int) -> str:
     return (date.today() - timedelta(days=days_ago)).isoformat()
 
 
-def get_profile() -> dict[str, Any]:
-    import garth
-
-    return garth.connectapi("/userprofile-service/userprofile/personal-information")
+def get_profile(client: garth.Client) -> dict[str, Any]:
+    return client.connectapi("/userprofile-service/userprofile/personal-information")
 
 
-def get_recent_activities(limit: int = 10) -> list[dict[str, Any]]:
-    import garth
+def get_recent_activities(client: garth.Client, limit: int = 200, page_size: int = 100) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    start = 0
+    while len(results) < limit:
+        batch = client.connectapi(
+            "/activitylist-service/activities/search/activities",
+            params={"start": str(start), "limit": str(min(page_size, limit - len(results)))},
+        )
+        if not batch or not isinstance(batch, list):
+            break
+        results.extend(batch)
+        if len(batch) < page_size:
+            break
+        start += len(batch)
+    return results
 
-    result = garth.connectapi(
-        "/activitylist-service/activities/search/activities",
-        params={"start": "0", "limit": str(limit)},
-    )
-    return result if isinstance(result, list) else []
 
-
-def get_daily_summary(display_name: str, date_str: str) -> dict[str, Any]:
-    import garth
-
-    return garth.connectapi(
+def get_daily_summary(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
+    return client.connectapi(
         f"/usersummary-service/usersummary/daily/{display_name}",
         params={"calendarDate": date_str},
     )
 
 
-def get_training_status(date_str: str) -> dict[str, Any]:
-    import garth
-
-    return garth.connectapi(
+def get_training_status(client: garth.Client, date_str: str) -> dict[str, Any]:
+    return client.connectapi(
         f"/metrics-service/metrics/trainingstatus/aggregated/{date_str}"
     )
 
 
-def get_sleep_data(display_name: str, date_str: str) -> dict[str, Any]:
-    import garth
-
-    return garth.connectapi(
+def get_sleep_data(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
+    return client.connectapi(
         f"/wellness-service/wellness/dailySleepData/{display_name}",
         params={"date": date_str},
     )
 
 
-def get_user_settings() -> dict[str, Any]:
-    import garth
-
-    return garth.connectapi("/userprofile-service/userprofile/user-settings")
+def get_user_settings(client: garth.Client) -> dict[str, Any]:
+    return client.connectapi("/userprofile-service/userprofile/user-settings")
 
 
-def get_all_data() -> dict[str, Any]:
+def get_all_data(client: garth.Client) -> dict[str, Any]:
     """
     Fetch all Garmin data used to build the Claude system prompt.
     Each fetch is independent — failures return an error object rather than
@@ -78,13 +77,11 @@ def get_all_data() -> dict[str, Any]:
     # Profile (needed for display_name used in several endpoints)
     display_name = ""
     try:
-        import garth
-
-        profile = get_profile()
+        profile = get_profile(client)
         display_name = (
             profile.get("displayName", "")
             or profile.get("userName", "")
-            or getattr(garth.client, "username", "")
+            or getattr(client, "username", "")
         )
         data["profile"] = {
             "displayName": display_name,
@@ -93,29 +90,29 @@ def get_all_data() -> dict[str, Any]:
     except Exception as e:
         data["profile"] = {"error": str(e)}
 
-    # Recent activities
+    # Recent activities (paginated up to 200)
     try:
-        activities = get_recent_activities(10)
+        activities = get_recent_activities(client, 200)
         data["recentActivities"] = [_format_activity(a) for a in activities]
     except Exception as e:
         data["recentActivities"] = {"error": str(e)}
 
     # Today's daily summary (steps, calories, floors, HR)
     try:
-        data["todayStats"] = get_daily_summary(display_name, today)
+        data["todayStats"] = get_daily_summary(client, display_name, today)
     except Exception as e:
         data["todayStats"] = {"error": str(e)}
 
     # Last night's sleep
     try:
         yesterday = _date_str(1)
-        data["lastNightSleep"] = get_sleep_data(display_name, yesterday)
+        data["lastNightSleep"] = get_sleep_data(client, display_name, yesterday)
     except Exception as e:
         data["lastNightSleep"] = {"error": str(e)}
 
     # Heart rate zones derived from user settings
     try:
-        settings = get_user_settings()
+        settings = get_user_settings(client)
         user_data = settings.get("userData", {}) if isinstance(settings, dict) else {}
         max_hr = user_data.get("maxHeartRate", 185)
         resting_hr = user_data.get("restingHeartRate", 60)
@@ -125,7 +122,7 @@ def get_all_data() -> dict[str, Any]:
 
     # Training status: load, recovery, VO2 max from Garmin's metrics service
     try:
-        data["trainingStatus"] = get_training_status(today)
+        data["trainingStatus"] = get_training_status(client, today)
     except Exception as e:
         data["trainingStatus"] = {"error": str(e)}
 
@@ -172,5 +169,3 @@ def _compute_hr_zones(max_hr: int, resting_hr: int) -> dict[str, Any]:
         "lactateThreshold": round(max_hr * 0.87),
         "maxHeartRate": max_hr,
     }
-
-

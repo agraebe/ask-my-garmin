@@ -3,10 +3,31 @@
 import { useState } from 'react';
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: (token: string) => void;
 }
 
 type Step = 'credentials' | 'mfa';
+
+// Garmin-inspired navigation arrow SVG icon
+function GarminIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5 12h14M13 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function LoginModal({ onSuccess }: Props) {
   const [step, setStep] = useState<Step>('credentials');
@@ -39,7 +60,8 @@ export default function LoginModal({ onSuccess }: Props) {
         setSessionId(data.session_id);
         setStep('mfa');
       } else {
-        onSuccess();
+        sessionStorage.setItem('garmin_session', data.session_token ?? '');
+        onSuccess(data.session_token ?? '');
       }
     } catch {
       setError('Network error — is the Python backend running?');
@@ -66,7 +88,8 @@ export default function LoginModal({ onSuccess }: Props) {
         return;
       }
 
-      onSuccess();
+      sessionStorage.setItem('garmin_session', data.session_token ?? '');
+      onSuccess(data.session_token ?? '');
     } catch {
       setError('Network error — is the Python backend running?');
     } finally {
@@ -79,14 +102,14 @@ export default function LoginModal({ onSuccess }: Props) {
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
         {/* Logo + title */}
         <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-garmin-blue">
-            <span className="select-none text-xl font-bold text-white">G</span>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-garmin-blue text-white">
+            <GarminIcon size={22} />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-gray-900">Sign in to Garmin</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Connect your Garmin account</h1>
             <p className="mt-1 text-sm text-gray-500">
               {step === 'credentials'
-                ? 'Enter your Garmin Connect credentials'
+                ? 'This app accesses your Garmin Connect data on your behalf.'
                 : 'Enter the code from your authenticator app or SMS'}
             </p>
           </div>
@@ -137,6 +160,23 @@ export default function LoginModal({ onSuccess }: Props) {
             >
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
+            {/* Security notice */}
+            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-gray-400">
+              <svg
+                className="h-3.5 w-3.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              Your credentials are sent securely and never stored.
+            </p>
           </form>
         ) : (
           <form onSubmit={handleMfa} className="flex flex-col gap-4">

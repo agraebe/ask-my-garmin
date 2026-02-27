@@ -13,14 +13,14 @@ describe('MessageBubble', () => {
     expect(screen.getByText('You ran 5 miles.')).toBeInTheDocument();
   });
 
-  it('shows the Garmin G avatar for assistant messages', () => {
-    render(<MessageBubble message={{ role: 'assistant', content: 'Hi' }} />);
-    expect(screen.getByText('G')).toBeInTheDocument();
+  it('shows the Garmin icon avatar for assistant messages', () => {
+    const { container } = render(<MessageBubble message={{ role: 'assistant', content: 'Hi' }} />);
+    expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
-  it('does not show the G avatar for user messages', () => {
-    render(<MessageBubble message={{ role: 'user', content: 'Hi' }} />);
-    expect(screen.queryByText('G')).not.toBeInTheDocument();
+  it('does not show an icon avatar for user messages', () => {
+    const { container } = render(<MessageBubble message={{ role: 'user', content: 'Hi' }} />);
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
   });
 
   it('applies streaming cursor class when isStreaming=true', () => {
@@ -38,9 +38,7 @@ describe('MessageBubble', () => {
   });
 
   it('user bubble has blue background class', () => {
-    const { container } = render(
-      <MessageBubble message={{ role: 'user', content: 'Test' }} />
-    );
+    const { container } = render(<MessageBubble message={{ role: 'user', content: 'Test' }} />);
     // The user bubble should have the garmin-blue background
     const bubble = container.querySelector('.bg-garmin-blue');
     expect(bubble).toBeInTheDocument();

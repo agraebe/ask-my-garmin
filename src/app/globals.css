@@ -5,6 +5,12 @@
 /* Smooth scrolling for the message list */
 html {
   scroll-behavior: smooth;
+  /* Ensure the page fills the dynamic viewport height on mobile browsers */
+  height: 100%;
+}
+
+body {
+  height: 100%;
 }
 
 /* Custom scrollbar for the chat container */
@@ -24,8 +30,13 @@ html {
 
 /* Blinking cursor on streaming text */
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 .cursor-blink::after {
   content: '▍';

@@ -25,14 +25,14 @@ jobs:
     permissions:
       contents: read
       issues: write
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           direct_prompt: |
             Read CLAUDE.md to understand the project. Then read ALL comments on this issue
             to get the full context of the discussion so far.

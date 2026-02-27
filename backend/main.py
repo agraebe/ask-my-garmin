@@ -3,6 +3,7 @@ Ask My Garmin — FastAPI backend.
 
 Handles:
   - Garmin auth via garth (email/password + optional MFA/2FA)
+  - Per-user encrypted session tokens (no shared global state on disk)
   - Garmin data fetching
   - Claude AI streaming responses
 
@@ -11,51 +12,104 @@ Run with:
 """
 
 import asyncio
+import json
 import os
+import tempfile
 import threading
 import time
 import uuid
+import warnings
 from pathlib import Path
 from typing import Any
 
 import anthropic
 import garth
-from fastapi import FastAPI, HTTPException
+from cryptography.fernet import Fernet
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import garmin_client
 
-# ── Config ──────────────────────────────────────────────────────────────────
+# ── Session encryption ────────────────────────────────────────────────────────
+# SESSION_SECRET must be a URL-safe base64-encoded 32-byte key.
+# Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# If unset, a random key is used — session tokens will be invalidated on server restart.
 
-# Where garth stores OAuth tokens.
-# Override with GARTH_HOME env var (e.g. point at a mounted volume on Railway).
-# Defaults to ~/.garth-ask-my-garmin/ — persists across restarts on most PaaS
-# platforms; lost on redeploy if the service has no persistent volume.
-_garth_home_env = os.environ.get("GARTH_HOME", "")
-GARTH_HOME: Path = Path(_garth_home_env) if _garth_home_env else Path.home() / ".garth-ask-my-garmin"
+_SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
+if _SESSION_SECRET:
+    _fernet = Fernet(_SESSION_SECRET.encode())
+else:
+    _fernet = Fernet(Fernet.generate_key())
+    warnings.warn(
+        "SESSION_SECRET env var not set. "
+        "Session tokens will be invalidated on every server restart.",
+        stacklevel=1,
+    )
+
+
+def _encrypt_tokens(token_json: str) -> str:
+    return _fernet.encrypt(token_json.encode()).decode()
+
+
+def _decrypt_tokens(blob: str) -> str:
+    return _fernet.decrypt(blob.encode()).decode()
+
+
+def _serialize_garth_client(client: garth.Client) -> str:
+    """Serialize garth client OAuth tokens to a JSON string via garth's save()."""
+    with tempfile.TemporaryDirectory() as tmp:
+        client.save(tmp)
+        tokens: dict[str, str] = {}
+        for f in Path(tmp).iterdir():
+            tokens[f.name] = f.read_text()
+    return json.dumps(tokens)
+
+
+def _deserialize_garth_client(token_json: str) -> garth.Client:
+    """Restore a garth client from a serialized token JSON string."""
+    tokens = json.loads(token_json)
+    client = garth.Client()
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, content in tokens.items():
+            (Path(tmp) / name).write_text(content)
+        client.resume(tmp)
+    return client
+
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+# Simple in-memory rate limiter: max 5 login attempts per IP per 15 minutes.
+
+_login_rate_limit: dict[str, list[float]] = {}
+_RATE_LIMIT_WINDOW = 900.0  # 15 minutes
+_RATE_LIMIT_MAX = 5
+
+
+def _check_rate_limit(ip: str) -> None:
+    now = time.monotonic()
+    attempts = [t for t in _login_rate_limit.get(ip, []) if now - t < _RATE_LIMIT_WINDOW]
+    if len(attempts) >= _RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please wait 15 minutes before trying again.",
+        )
+    attempts.append(now)
+    _login_rate_limit[ip] = attempts
+
+
+# ── Config ────────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 # In-memory store for login sessions awaiting MFA input
 _login_sessions: dict[str, dict[str, Any]] = {}
 
-# ── App ──────────────────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Ask My Garmin API")
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    """Resume garth session from disk if tokens exist."""
-    if GARTH_HOME.exists():
-        try:
-            garth.resume(str(GARTH_HOME))
-        except Exception:
-            pass  # stale tokens — user will need to re-login
-
-
-# ── Request models ───────────────────────────────────────────────────────────
+# ── Request models ────────────────────────────────────────────────────────────
 
 
 class LoginRequest(BaseModel):
@@ -71,21 +125,25 @@ class MFARequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
     history: list[dict[str, str]] = []
+    session_token: str
 
 
-# ── Auth routes ──────────────────────────────────────────────────────────────
+# ── Auth routes ───────────────────────────────────────────────────────────────
 
 
 @app.post("/api/auth/login")
-async def login(body: LoginRequest) -> dict[str, Any]:
+async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
     """
-    Initiate Garmin login.
+    Initiate Garmin login. Creates a per-session garth client so multiple
+    users can log in concurrently without sharing global state.
 
     Returns:
-      {"status": "ok"}           — login succeeded (no 2FA required)
-      {"status": "mfa_required", "session_id": "..."}
-                                 — 2FA code needed; submit via /api/auth/mfa
+      {"status": "ok", "session_token": "..."}           — login succeeded
+      {"status": "mfa_required", "session_id": "..."}    — 2FA code needed
     """
+    ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(ip)
+
     session_id = str(uuid.uuid4())
 
     mfa_needed = threading.Event()
@@ -99,15 +157,17 @@ async def login(body: LoginRequest) -> dict[str, Any]:
         "login_done": login_done,
         "error": None,
         "success": False,
+        "token_json": None,
     }
     _login_sessions[session_id] = session
 
     def do_login() -> None:
         import builtins
 
+        # Create an isolated garth client for this login session.
+        per_session_client = garth.Client()
+
         # garth calls builtins.input() when Garmin requires a 2FA code.
-        # Intercept it so we can pause the login thread and wait for the
-        # code to arrive via POST /api/auth/mfa.
         _original_input = builtins.input
 
         def _mfa_input(_text: str = "") -> str:
@@ -117,8 +177,8 @@ async def login(body: LoginRequest) -> dict[str, Any]:
 
         builtins.input = _mfa_input
         try:
-            garth.client.login(body.email, body.password)
-            garth.save(str(GARTH_HOME))
+            per_session_client.login(body.email, body.password)
+            session["token_json"] = _serialize_garth_client(per_session_client)
             session["success"] = True
         except Exception as exc:
             session["error"] = str(exc)
@@ -129,17 +189,18 @@ async def login(body: LoginRequest) -> dict[str, Any]:
     thread = threading.Thread(target=do_login, daemon=True)
     thread.start()
 
-    # Wait up to 15 s for either MFA to be requested or login to finish
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _wait_first, mfa_needed, login_done, 15)
 
     if result == "mfa":
         return {"status": "mfa_required", "session_id": session_id}
 
-    # Login finished without MFA
     _login_sessions.pop(session_id, None)
-    if session["success"]:
-        return {"status": "ok"}
+    if session["success"] and session["token_json"]:
+        return {
+            "status": "ok",
+            "session_token": _encrypt_tokens(session["token_json"]),
+        }
     raise HTTPException(status_code=401, detail=session["error"] or "Login failed")
 
 
@@ -153,24 +214,33 @@ async def submit_mfa(body: MFARequest) -> dict[str, Any]:
     session["mfa_code"] = body.code
     session["mfa_provided"].set()
 
-    # Wait for garth to finish the login flow
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, session["login_done"].wait, 30)
 
     _login_sessions.pop(body.session_id, None)
-    if session["success"]:
-        return {"status": "ok"}
+    if session["success"] and session["token_json"]:
+        return {
+            "status": "ok",
+            "session_token": _encrypt_tokens(session["token_json"]),
+        }
     raise HTTPException(status_code=401, detail=session["error"] or "MFA verification failed")
 
 
 @app.get("/api/auth/status")
-async def auth_status() -> dict[str, Any]:
-    """Check whether the user is authenticated with Garmin Connect."""
-    if not GARTH_HOME.exists():
+async def auth_status(session_token: str | None = None) -> dict[str, Any]:
+    """Check whether the session token represents a valid Garmin connection."""
+    if not session_token:
         return {"connected": False}
     try:
-        garth.resume(str(GARTH_HOME))
-        profile = garth.connectapi("/userprofile-service/userprofile/personal-information")
+        token_json = _decrypt_tokens(session_token)
+        client = _deserialize_garth_client(token_json)
+        loop = asyncio.get_event_loop()
+        profile = await loop.run_in_executor(
+            None,
+            lambda: client.connectapi(
+                "/userprofile-service/userprofile/personal-information"
+            ),
+        )
         email = profile.get("emailAddress", "") if isinstance(profile, dict) else ""
         return {"connected": True, "email": email}
     except Exception as exc:
@@ -179,43 +249,48 @@ async def auth_status() -> dict[str, Any]:
 
 @app.post("/api/auth/logout")
 async def logout() -> dict[str, str]:
-    """Remove stored Garmin tokens."""
-    import shutil
-
-    shutil.rmtree(str(GARTH_HOME), ignore_errors=True)
+    """Stateless logout — client simply discards the session token."""
     return {"status": "ok"}
 
 
-# ── Ask route ────────────────────────────────────────────────────────────────
+# ── Ask route ─────────────────────────────────────────────────────────────────
 
 
 @app.post("/api/ask")
 async def ask(body: AskRequest) -> StreamingResponse:
     """Fetch live Garmin data and stream a Claude response."""
-    if not GARTH_HOME.exists():
-        raise HTTPException(status_code=401, detail="Not authenticated with Garmin")
-
     if not body.question.strip():
         raise HTTPException(status_code=400, detail="Question is required")
 
-    # Fetch Garmin data in a thread (garth is synchronous)
+    try:
+        token_json = _decrypt_tokens(body.session_token)
+        ephemeral_client = _deserialize_garth_client(token_json)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
     loop = asyncio.get_event_loop()
     try:
-        garth.resume(str(GARTH_HOME))
-        garmin_data = await loop.run_in_executor(None, garmin_client.get_all_data)
+        garmin_data = await loop.run_in_executor(
+            None, garmin_client.get_all_data, ephemeral_client
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Garmin data unavailable: {exc}")
 
-    # Build Claude messages
+    # Re-serialize the client in case OAuth tokens were refreshed during data fetch
+    try:
+        updated_session_token = _encrypt_tokens(_serialize_garth_client(ephemeral_client))
+    except Exception:
+        updated_session_token = body.session_token  # fall back to original
+
     messages = [
         *[{"role": m["role"], "content": m["content"]} for m in body.history],
         {"role": "user", "content": body.question},
     ]
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     def stream_tokens():
-        with client.messages.stream(
+        with claude.messages.stream(
             model="claude-sonnet-4-6",
             max_tokens=1024,
             system=_build_system_prompt(garmin_data),
@@ -227,11 +302,15 @@ async def ask(body: AskRequest) -> StreamingResponse:
     return StreamingResponse(
         stream_tokens(),
         media_type="text/plain; charset=utf-8",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Token": updated_session_token,
+        },
     )
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _wait_first(
@@ -239,7 +318,7 @@ def _wait_first(
     event_b: threading.Event,
     timeout: float,
 ) -> str:
-    """Block until either event_a or event_b is set. Returns 'a' or 'b'."""
+    """Block until either event_a or event_b is set. Returns 'mfa' or 'done'."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if event_a.is_set():
@@ -247,11 +326,11 @@ def _wait_first(
         if event_b.is_set():
             return "done"
         time.sleep(0.05)
-    return "done"  # timed out — fall through to check login_done
+    return "done"  # timed out — fall through
 
 
 def _build_system_prompt(garmin_data: dict[str, Any]) -> str:
-    import json
+    import json as _json
     from datetime import date
 
     today = date.today().strftime("%A, %B %-d, %Y")
@@ -279,7 +358,7 @@ Formatting tips:
 - Today's date: {today}.
 
 ## User's Garmin Data
-{json.dumps(garmin_data, indent=2)}"""
+{_json.dumps(garmin_data, indent=2)}"""
 
 
 if __name__ == "__main__":
