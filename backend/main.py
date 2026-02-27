@@ -57,24 +57,84 @@ def _decrypt_tokens(blob: str) -> str:
 
 
 def _serialize_garth_client(client: garth.Client) -> str:
-    """Serialize garth client OAuth tokens to a JSON string via garth's save()."""
-    with tempfile.TemporaryDirectory() as tmp:
-        client.save(tmp)
-        tokens: dict[str, str] = {}
-        for f in Path(tmp).iterdir():
-            tokens[f.name] = f.read_text()
-    return json.dumps(tokens)
+    """Serialize garth client OAuth tokens to a JSON string.
+
+    Tries save() first for maximum compatibility, then falls back to directly
+    reading oauth1_token / oauth2_token attributes (garth versions that lack save()).
+    """
+    import dataclasses
+
+    # Primary: use save() if available
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            client.save(tmp)
+            file_tokens: dict[str, str] = {}
+            for f in Path(tmp).iterdir():
+                file_tokens[f.name] = f.read_text()
+        return json.dumps(file_tokens)
+    except AttributeError:
+        pass
+
+    # Fallback: read token objects directly from client attributes
+    direct_tokens: dict[str, str] = {}
+    for attr, filename in (
+        ("oauth1_token", "oauth1_token.json"),
+        ("oauth2_token", "oauth2_token.json"),
+    ):
+        token = getattr(client, attr, None)
+        if token is None:
+            continue
+        if hasattr(token, "json"):
+            direct_tokens[filename] = token.json
+        elif dataclasses.is_dataclass(token):
+            direct_tokens[filename] = json.dumps(dataclasses.asdict(token))
+        elif hasattr(token, "model_dump_json"):
+            direct_tokens[filename] = token.model_dump_json()
+    return json.dumps(direct_tokens)
 
 
 def _deserialize_garth_client(token_json: str) -> garth.Client:
-    """Restore a garth client from a serialized token JSON string."""
+    """Restore a garth client from a serialized token JSON string.
+
+    Tries resume() first, then falls back to loading token attributes directly
+    (garth versions that lack resume()).
+    """
     tokens = json.loads(token_json)
     client = garth.Client()
     with tempfile.TemporaryDirectory() as tmp:
         for name, content in tokens.items():
             (Path(tmp) / name).write_text(content)
-        client.resume(tmp)
+        try:
+            client.resume(tmp)
+        except AttributeError:
+            _resume_client_from_dir(client, Path(tmp))
     return client
+
+
+def _resume_client_from_dir(client: garth.Client, directory: Path) -> None:
+    """Load token files directly into client attributes (fallback for missing resume())."""
+    import importlib
+
+    try:
+        auth = importlib.import_module("garth.auth")
+    except ImportError:
+        return
+
+    for filename, attr, class_name in (
+        ("oauth1_token.json", "oauth1_token", "OAuth1Token"),
+        ("oauth2_token.json", "oauth2_token", "OAuth2Token"),
+    ):
+        filepath = directory / filename
+        if not filepath.exists():
+            continue
+        TokenClass = getattr(auth, class_name, None)
+        if TokenClass is None:
+            continue
+        try:
+            data = json.loads(filepath.read_text())
+            setattr(client, attr, TokenClass(**data))
+        except Exception:
+            pass
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
