@@ -3,7 +3,9 @@ import type { NextConfig } from 'next';
 // In production (Vercel), point at the deployed Python backend.
 // In local development, default to localhost:8000.
 // Set BACKEND_URL in the Vercel dashboard before deploying.
-const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8000';
+// Strip any trailing slash so the rewrite never produces a double-slash path
+// (e.g. if BACKEND_URL was set to "https://…railway.app/" in Vercel).
+const backendUrl = (process.env.BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
   async rewrites() {
