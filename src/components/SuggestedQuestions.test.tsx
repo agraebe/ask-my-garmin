@@ -38,3 +38,41 @@ describe('SuggestedQuestions', () => {
     );
   });
 });
+
+describe('SuggestedQuestions in fun mode', () => {
+  it('renders the RunBot 9000 title', () => {
+    render(<SuggestedQuestions onSelect={vi.fn()} funMode={true} />);
+    expect(screen.getByText('RunBot 9000')).toBeInTheDocument();
+  });
+
+  it('renders the fun mode subtitle', () => {
+    render(<SuggestedQuestions onSelect={vi.fn()} funMode={true} />);
+    expect(
+      screen.getByText("What does your Garmin say? (It's probably fine.)")
+    ).toBeInTheDocument();
+  });
+
+  it('renders RCJ suggestion buttons', () => {
+    render(<SuggestedQuestions onSelect={vi.fn()} funMode={true} />);
+    expect(screen.getByText(/Vaporfly/i)).toBeInTheDocument();
+    expect(screen.getByText(/BQ by 8 seconds/i)).toBeInTheDocument();
+    expect(screen.getByText(/forget to start my Garmin/i)).toBeInTheDocument();
+  });
+
+  it('does not render normal suggestions in fun mode', () => {
+    render(<SuggestedQuestions onSelect={vi.fn()} funMode={true} />);
+    expect(screen.queryByText(/half marathon/i)).not.toBeInTheDocument();
+  });
+
+  it('calls onSelect with an RCJ question when clicked', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<SuggestedQuestions onSelect={onSelect} funMode={true} />);
+
+    await user.click(screen.getByText(/forget to start my Garmin/i));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onSelect).toHaveBeenCalledWith(
+      "If I do a run and forget to start my Garmin, did it still count?"
+    );
+  });
+});

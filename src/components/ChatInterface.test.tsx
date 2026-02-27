@@ -111,4 +111,47 @@ describe('ChatInterface', () => {
       expect(screen.getAllByText('How many miles did I run this week?').length).toBeGreaterThan(0);
     });
   });
+
+  it('includes fun_mode=false in the POST body by default', async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    server.use(
+      http.post('/api/ask', async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse('response', {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      })
+    );
+    const user = userEvent.setup();
+    render(<ChatInterface />);
+    await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() => {
+      expect(capturedBody?.fun_mode).toBe(false);
+    });
+  });
+
+  it('includes fun_mode=true in the POST body when funMode prop is true', async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    server.use(
+      http.post('/api/ask', async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse('RCJ response', {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      })
+    );
+    const user = userEvent.setup();
+    render(<ChatInterface funMode={true} />);
+    await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() => {
+      expect(capturedBody?.fun_mode).toBe(true);
+    });
+  });
+
+  it('shows RCJ suggested questions when funMode is true', () => {
+    render(<ChatInterface funMode={true} />);
+    expect(screen.getByText('RunBot 9000')).toBeInTheDocument();
+  });
 });

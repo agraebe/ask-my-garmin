@@ -5,7 +5,11 @@ import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
 import type { Message } from '@/types';
 
-export default function ChatInterface() {
+interface Props {
+  funMode?: boolean;
+}
+
+export default function ChatInterface({ funMode = false }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -41,6 +45,7 @@ export default function ChatInterface() {
             question,
             history: messages, // send history before the new user message
             session_token: sessionToken,
+            fun_mode: funMode,
           }),
         });
 
@@ -75,7 +80,7 @@ export default function ChatInterface() {
         inputRef.current?.focus();
       }
     },
-    [messages, isStreaming]
+    [messages, isStreaming, funMode]
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,12 +95,17 @@ export default function ChatInterface() {
     }
   };
 
+  const accentFocus = funMode
+    ? 'focus:ring-rcj'
+    : 'focus:ring-garmin-blue';
+  const accentButton = funMode ? 'bg-rcj' : 'bg-garmin-blue';
+
   return (
     <div className="flex h-full flex-col">
       {/* Message list */}
       <div className="chat-scroll flex-1 overflow-y-auto px-3 py-4 sm:px-6">
         {messages.length === 0 ? (
-          <SuggestedQuestions onSelect={(q) => sendMessage(q)} />
+          <SuggestedQuestions onSelect={(q) => sendMessage(q)} funMode={funMode} />
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-4">
             {messages.map((msg, i) => {
@@ -120,7 +130,7 @@ export default function ChatInterface() {
             placeholder="Ask about your activities, sleep, heart rate…"
             rows={1}
             disabled={isStreaming}
-            className="max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue disabled:cursor-not-allowed disabled:opacity-50"
+            className={`max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${accentFocus}`}
             style={{ minHeight: '44px' }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -131,7 +141,7 @@ export default function ChatInterface() {
           <button
             type="submit"
             disabled={!input.trim() || isStreaming}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-garmin-blue text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${accentButton}`}
             aria-label="Send"
           >
             {isStreaming ? (

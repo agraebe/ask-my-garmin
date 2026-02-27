@@ -7,6 +7,8 @@ import LoginModal from '@/components/LoginModal';
 
 type AuthState = 'loading' | 'connected' | 'disconnected';
 
+const FUN_MODE_KEY = 'ask_my_garmin_fun_mode';
+
 // Garmin-inspired navigation arrow icon
 function GarminIcon() {
   return (
@@ -26,6 +28,12 @@ export default function Home() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [email, setEmail] = useState('');
   const [showLogin, setShowLogin] = useState(false);
+  const [funMode, setFunMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(FUN_MODE_KEY) === 'true';
+    }
+    return false;
+  });
 
   const checkStatus = useCallback(async () => {
     try {
@@ -63,6 +71,12 @@ export default function Home() {
     checkStatus();
   }
 
+  function toggleFunMode() {
+    const next = !funMode;
+    setFunMode(next);
+    localStorage.setItem(FUN_MODE_KEY, String(next));
+  }
+
   const isLoading = authState === 'loading';
   const isConnected = authState === 'connected';
 
@@ -71,18 +85,37 @@ export default function Home() {
       <header className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-garmin-blue text-white">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-lg text-white ${funMode ? 'bg-rcj' : 'bg-garmin-blue'}`}
+            >
               <GarminIcon />
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">Ask My Garmin</h1>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
+            </h1>
           </div>
 
-          <GarminStatus
-            connected={isLoading ? null : isConnected}
-            email={email}
-            onLoginClick={() => setShowLogin(true)}
-            onLogout={handleLogout}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleFunMode}
+              aria-pressed={funMode}
+              title={funMode ? 'Disable Fun Mode' : 'Enable Fun Mode'}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                funMode
+                  ? 'bg-rcj text-white'
+                  : 'border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              {funMode ? '🔥 RCJ Mode' : '🏃 Fun Mode'}
+            </button>
+
+            <GarminStatus
+              connected={isLoading ? null : isConnected}
+              email={email}
+              onLoginClick={() => setShowLogin(true)}
+              onLogout={handleLogout}
+            />
+          </div>
         </div>
       </header>
 
@@ -90,7 +123,7 @@ export default function Home() {
       {(showLogin || (!isLoading && !isConnected)) && <LoginModal onSuccess={handleLoginSuccess} />}
 
       <div className="mx-auto w-full max-w-4xl flex-1 overflow-hidden">
-        <ChatInterface />
+        <ChatInterface funMode={funMode} />
       </div>
     </main>
   );

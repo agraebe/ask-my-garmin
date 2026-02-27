@@ -13,6 +13,7 @@ const config: Config = {
           blue: '#007DC3',
           dark: '#1D2F3F',
         },
+        rcj: '#FF6B35',
       },
     },
   },
