@@ -1,40 +1,55 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
-import { server } from '@/test/msw/server';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import GarminStatus from './GarminStatus';
 
+const noop = () => {};
+
 describe('GarminStatus', () => {
-  it('shows a loading/connecting state initially', () => {
-    render(<GarminStatus />);
+  it('shows a loading/connecting state when connected is null', () => {
+    render(<GarminStatus connected={null} onLoginClick={noop} onLogout={noop} />);
     expect(screen.getByText(/connecting/i)).toBeInTheDocument();
   });
 
-  it('shows "Connected" when the API returns connected: true', async () => {
-    // Default MSW handler already returns connected: true
-    render(<GarminStatus />);
-    await waitFor(() => {
-      expect(screen.getByText('Connected')).toBeInTheDocument();
-    });
-  });
-
-  it('shows "Not connected" when the API returns connected: false', async () => {
-    server.use(
-      http.get('/api/garmin/status', () =>
-        HttpResponse.json({ connected: false, error: 'Invalid credentials' }, { status: 503 })
-      )
+  it('shows "Connected" with email when connected', () => {
+    render(
+      <GarminStatus
+        connected={true}
+        email="runner@example.com"
+        onLoginClick={noop}
+        onLogout={noop}
+      />
     );
-    render(<GarminStatus />);
-    await waitFor(() => {
-      expect(screen.getByText('Not connected')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Connected')).toBeInTheDocument();
+    expect(screen.getByText('(runner@example.com)')).toBeInTheDocument();
   });
 
-  it('shows "Not connected" on a network error', async () => {
-    server.use(http.get('/api/garmin/status', () => HttpResponse.error()));
-    render(<GarminStatus />);
-    await waitFor(() => {
-      expect(screen.getByText('Not connected')).toBeInTheDocument();
-    });
+  it('shows "Not connected" and a Sign in button when disconnected', () => {
+    render(<GarminStatus connected={false} onLoginClick={noop} onLogout={noop} />);
+    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('calls onLoginClick when Sign in is clicked', async () => {
+    const user = userEvent.setup();
+    const onLoginClick = vi.fn();
+    render(<GarminStatus connected={false} onLoginClick={onLoginClick} onLogout={noop} />);
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    expect(onLoginClick).toHaveBeenCalledOnce();
+  });
+
+  it('calls onLogout when Sign out is clicked', async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn();
+    render(
+      <GarminStatus
+        connected={true}
+        email="runner@example.com"
+        onLoginClick={noop}
+        onLogout={onLogout}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: /sign out/i }));
+    expect(onLogout).toHaveBeenCalledOnce();
   });
 });

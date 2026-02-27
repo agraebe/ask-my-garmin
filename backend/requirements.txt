@@ -1,0 +1,4 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+garth>=0.4.46
+anthropic>=0.39.0
