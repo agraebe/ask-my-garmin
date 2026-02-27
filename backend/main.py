@@ -102,20 +102,28 @@ async def login(body: LoginRequest) -> dict[str, Any]:
     }
     _login_sessions[session_id] = session
 
-    def mfa_prompt(_prompt_text: str) -> str:
-        """Called by garth when Garmin requires a 2FA code."""
-        mfa_needed.set()
-        mfa_provided.wait(timeout=300)  # give user 5 min to enter code
-        return session["mfa_code"] or ""
-
     def do_login() -> None:
+        import builtins
+
+        # garth calls builtins.input() when Garmin requires a 2FA code.
+        # Intercept it so we can pause the login thread and wait for the
+        # code to arrive via POST /api/auth/mfa.
+        _original_input = builtins.input
+
+        def _mfa_input(_text: str = "") -> str:
+            mfa_needed.set()
+            mfa_provided.wait(timeout=300)  # wait up to 5 min
+            return session["mfa_code"] or ""
+
+        builtins.input = _mfa_input
         try:
-            garth.client.login(body.email, body.password, prompt=mfa_prompt)
+            garth.client.login(body.email, body.password)
             garth.save(str(GARTH_HOME))
             session["success"] = True
         except Exception as exc:
             session["error"] = str(exc)
         finally:
+            builtins.input = _original_input
             login_done.set()
 
     thread = threading.Thread(target=do_login, daemon=True)
