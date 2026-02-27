@@ -27,8 +27,8 @@ def get_recent_activities(limit: int = 10) -> list[dict[str, Any]]:
     import garth
 
     result = garth.connectapi(
-        "/activitylist-service/activity/search/activities",
-        params={"start": 0, "limit": limit},
+        "/activitylist-service/activities/search/activities",
+        params={"start": "0", "limit": str(limit)},
     )
     return result if isinstance(result, list) else []
 
@@ -39,6 +39,14 @@ def get_daily_summary(display_name: str, date_str: str) -> dict[str, Any]:
     return garth.connectapi(
         f"/usersummary-service/usersummary/daily/{display_name}",
         params={"calendarDate": date_str},
+    )
+
+
+def get_training_status(date_str: str) -> dict[str, Any]:
+    import garth
+
+    return garth.connectapi(
+        f"/metrics-service/metrics/trainingstatus/aggregated/{date_str}"
     )
 
 
@@ -70,8 +78,14 @@ def get_all_data() -> dict[str, Any]:
     # Profile (needed for display_name used in several endpoints)
     display_name = ""
     try:
+        import garth
+
         profile = get_profile()
-        display_name = profile.get("displayName", "")
+        display_name = (
+            profile.get("displayName", "")
+            or profile.get("userName", "")
+            or getattr(garth.client, "username", "")
+        )
         data["profile"] = {
             "displayName": display_name,
             "email": profile.get("emailAddress", ""),
@@ -109,12 +123,11 @@ def get_all_data() -> dict[str, Any]:
     except Exception as e:
         data["heartRateZones"] = {"error": str(e)}
 
-    # Training load: ATL/CTL/TSB from last 90 activities
+    # Training status: load, recovery, VO2 max from Garmin's metrics service
     try:
-        all_activities = get_recent_activities(90)
-        data["trainingLoad"] = _compute_training_load(all_activities)
+        data["trainingStatus"] = get_training_status(today)
     except Exception as e:
-        data["trainingLoad"] = {"error": str(e)}
+        data["trainingStatus"] = {"error": str(e)}
 
     data["fetchedAt"] = today
     return data
@@ -161,40 +174,3 @@ def _compute_hr_zones(max_hr: int, resting_hr: int) -> dict[str, Any]:
     }
 
 
-def _compute_training_load(activities: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Compute 30-day ATL/CTL/TSB from activities."""
-    from collections import defaultdict
-
-    tss_by_date: dict[str, float] = defaultdict(float)
-    for a in activities:
-        start = a.get("startTimeLocal", "") or a.get("startTimeGMT", "")
-        if start:
-            day = start[:10].replace(" ", "-")
-            tss_by_date[day] += a.get("trainingStressScore") or 0
-
-    # Build 42-day window (oldest → newest) for CTL calculation
-    window = [_date_str(41 - i) for i in range(42)]
-    result = []
-    for i, d in enumerate(window):
-        atl_slice = window[max(0, i - 6) : i + 1]
-        ctl_slice = window[: i + 1]
-        atl = sum(tss_by_date[x] for x in atl_slice) / len(atl_slice)
-        ctl = sum(tss_by_date[x] for x in ctl_slice) / len(ctl_slice)
-        prev_slice = window[max(0, i - 13) : max(0, i - 6)]
-        prev_atl = (
-            sum(tss_by_date[x] for x in prev_slice) / len(prev_slice)
-            if prev_slice
-            else atl
-        )
-        ramp = round(((atl - prev_atl) / prev_atl) * 100) if prev_atl else 0
-        result.append(
-            {
-                "date": d,
-                "acuteTrainingLoad": round(atl),
-                "chronicTrainingLoad": round(ctl),
-                "trainingStressBalance": round(ctl - atl),
-                "rampRate": ramp,
-            }
-        )
-
-    return result[-30:]  # last 30 days only
