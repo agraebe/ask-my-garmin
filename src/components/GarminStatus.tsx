@@ -10,8 +10,8 @@ interface Props {
 export default function GarminStatus({ connected, email, onLoginClick, onLogout }: Props) {
   if (connected === null) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-gray-300" />
+      <div className="flex items-center gap-2 text-sm text-garmin-text-muted">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-garmin-border" />
         Connecting…
       </div>
     );
@@ -21,20 +21,20 @@ export default function GarminStatus({ connected, email, onLoginClick, onLogout 
     return (
       <div className="flex items-center gap-3">
         <div
-          className="flex items-center gap-2 text-sm text-gray-600"
+          className="flex items-center gap-2 text-sm text-garmin-text"
           title={email ? `Connected as ${email}` : 'Connected'}
         >
-          <span className="h-2 w-2 rounded-full bg-green-500" />
+          <span className="h-2 w-2 rounded-full bg-garmin-green" />
           <span>Connected</span>
           {email && (
-            <span className="max-w-[120px] truncate text-xs text-gray-400 sm:max-w-none">
+            <span className="max-w-[120px] truncate text-xs text-garmin-text-muted sm:max-w-none">
               ({email})
             </span>
           )}
         </div>
         <button
           onClick={onLogout}
-          className="rounded-md px-3 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          className="rounded-md px-3 py-1 text-xs text-garmin-text-muted transition-colors hover:bg-garmin-surface-2 hover:text-garmin-text"
         >
           Sign out
         </button>

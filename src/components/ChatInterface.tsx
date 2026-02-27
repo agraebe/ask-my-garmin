@@ -120,7 +120,7 @@ export default function ChatInterface({ funMode = false }: Props) {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 bg-white px-3 py-3 sm:px-6">
+      <div className="border-t border-garmin-border bg-garmin-surface px-3 py-3 sm:px-6">
         <form onSubmit={handleSubmit} className="mx-auto flex max-w-3xl items-end gap-3">
           <textarea
             ref={inputRef}
@@ -130,7 +130,7 @@ export default function ChatInterface({ funMode = false }: Props) {
             placeholder="Ask about your activities, sleep, heart rate…"
             rows={1}
             disabled={isStreaming}
-            className={`max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${accentFocus}`}
+            className={`max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-garmin-border bg-garmin-bg px-4 py-3 text-sm text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${accentFocus}`}
             style={{ minHeight: '44px' }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -169,7 +169,7 @@ export default function ChatInterface({ funMode = false }: Props) {
             )}
           </button>
         </form>
-        <p className="mt-2 text-center text-xs text-gray-400">
+        <p className="mt-2 text-center text-xs text-garmin-text-muted">
           Press Enter to send · Shift+Enter for new line
         </p>
       </div>

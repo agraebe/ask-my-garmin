@@ -18,14 +18,14 @@ body {
   width: 6px;
 }
 .chat-scroll::-webkit-scrollbar-track {
-  background: transparent;
+  background: #0f1923;
 }
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #2a3f55;
   border-radius: 3px;
 }
 .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #3a5570;
 }
 
 /* Blinking cursor on streaming text */

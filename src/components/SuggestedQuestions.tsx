@@ -33,13 +33,13 @@ interface Props {
   funMode?: boolean;
 }
 
-function GarminIcon() {
+function ActivityIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M5 12h14M13 6l6 6-6 6"
+      <polyline
+        points="2 12 6 12 8 5 10 19 13 9 15 15 17 12 22 12"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -56,12 +56,12 @@ export default function SuggestedQuestions({ onSelect, funMode = false }: Props)
         <div
           className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-white sm:h-16 sm:w-16 ${funMode ? 'bg-rcj' : 'bg-garmin-blue'}`}
         >
-          <GarminIcon />
+          <ActivityIcon />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">
+        <h2 className="text-xl font-semibold text-garmin-text">
           {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
         </h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-garmin-text-muted">
           {funMode
             ? "What does your Garmin say? (It's probably fine.)"
             : 'Get personalized training insights from your Garmin data using AI.'}
@@ -73,10 +73,10 @@ export default function SuggestedQuestions({ onSelect, funMode = false }: Props)
           <button
             key={q}
             onClick={() => onSelect(q)}
-            className={`rounded-xl border border-gray-200 bg-white px-3 py-3 text-left text-sm text-gray-700 shadow-sm transition-colors sm:px-4 ${
+            className={`rounded-xl border border-garmin-border bg-garmin-surface px-3 py-3 text-left text-sm text-garmin-text shadow-sm transition-colors sm:px-4 ${
               funMode
-                ? 'hover:border-rcj hover:bg-orange-50'
-                : 'hover:border-garmin-blue hover:bg-blue-50'
+                ? 'hover:border-rcj hover:bg-garmin-surface-2'
+                : 'hover:border-garmin-blue hover:bg-garmin-surface-2'
             }`}
           >
             {q}

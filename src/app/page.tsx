@@ -82,7 +82,7 @@ export default function Home() {
 
   return (
     <main className="flex h-dvh flex-col">
-      <header className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
+      <header className="flex-shrink-0 border-b border-garmin-border bg-garmin-surface px-4 py-3 sm:px-6 sm:py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
             <div
@@ -90,7 +90,7 @@ export default function Home() {
             >
               <GarminIcon />
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-garmin-text">
               {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
             </h1>
           </div>
@@ -103,7 +103,7 @@ export default function Home() {
               className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                 funMode
                   ? 'bg-rcj text-white'
-                  : 'border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  : 'border border-garmin-border bg-garmin-surface-2 text-garmin-text-muted hover:border-garmin-blue hover:text-garmin-text'
               }`}
             >
               {funMode ? '🔥 RCJ Mode' : '🏃 Fun Mode'}
