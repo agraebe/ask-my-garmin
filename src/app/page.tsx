@@ -28,12 +28,7 @@ export default function Home() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [email, setEmail] = useState('');
   const [showLogin, setShowLogin] = useState(false);
-  const [funMode, setFunMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(FUN_MODE_KEY) === 'true';
-    }
-    return false;
-  });
+  const [funMode, setFunMode] = useState<boolean>(false);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -57,6 +52,10 @@ export default function Home() {
   useEffect(() => {
     checkStatus();
   }, [checkStatus]);
+
+  useEffect(() => {
+    setFunMode(localStorage.getItem(FUN_MODE_KEY) === 'true');
+  }, []);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
