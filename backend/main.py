@@ -12,6 +12,7 @@ Run with:
 """
 
 import asyncio
+import datetime
 import json
 import os
 import tempfile
@@ -46,6 +47,13 @@ else:
         "Session tokens will be invalidated on every server restart.",
         stacklevel=1,
     )
+
+
+def _json_serial(obj: object) -> str:
+    """JSON serializer for types not handled by default (e.g. datetime)."""
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def _encrypt_tokens(token_json: str) -> str:
@@ -87,7 +95,7 @@ def _serialize_garth_client(client: garth.Client) -> str:
         if hasattr(token, "json"):
             direct_tokens[filename] = token.json
         elif dataclasses.is_dataclass(token):
-            direct_tokens[filename] = json.dumps(dataclasses.asdict(token))
+            direct_tokens[filename] = json.dumps(dataclasses.asdict(token), default=_json_serial)
         elif hasattr(token, "model_dump_json"):
             direct_tokens[filename] = token.model_dump_json()
     return json.dumps(direct_tokens)
