@@ -36,7 +36,7 @@ export default function MessageBubble({ message, isStreaming = false }: Props) {
         className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[75%] ${
           isUser
             ? 'rounded-br-sm bg-garmin-blue text-white'
-            : 'rounded-bl-sm border border-gray-200 bg-white text-gray-800 shadow-sm'
+            : 'rounded-bl-sm border border-garmin-border bg-garmin-surface text-garmin-text shadow-sm'
         } ${isStreaming ? 'cursor-blink' : ''} `}
       >
         {message.content || (isStreaming ? '' : '…')}

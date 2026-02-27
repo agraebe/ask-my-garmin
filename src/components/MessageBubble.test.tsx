@@ -45,10 +45,10 @@ describe('MessageBubble', () => {
     expect(bubble).toHaveTextContent('Test');
   });
 
-  it('assistant bubble has white background class', () => {
+  it('assistant bubble has dark surface background class', () => {
     const { container } = render(
       <MessageBubble message={{ role: 'assistant', content: 'Test' }} />
     );
-    expect(container.querySelector('.bg-white')).toBeInTheDocument();
+    expect(container.querySelector('.bg-garmin-surface')).toBeInTheDocument();
   });
 });
