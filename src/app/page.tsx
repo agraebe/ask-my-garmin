@@ -29,6 +29,7 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [funMode, setFunMode] = useState<boolean>(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -118,11 +119,20 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Login modal — shown when explicitly triggered or on first visit while disconnected */}
-      {(showLogin || (!isLoading && !isConnected)) && <LoginModal onSuccess={handleLoginSuccess} />}
+      {/* Login modal — only shown when explicitly triggered (e.g. intercepted send) */}
+      {showLogin && <LoginModal onSuccess={handleLoginSuccess} />}
 
       <div className="mx-auto w-full max-w-4xl flex-1 overflow-hidden">
-        <ChatInterface funMode={funMode} />
+        <ChatInterface
+          funMode={funMode}
+          isConnected={isConnected}
+          onLoginRequired={(q) => {
+            setPendingQuestion(q);
+            setShowLogin(true);
+          }}
+          pendingQuestion={pendingQuestion}
+          onPendingQuestionHandled={() => setPendingQuestion(null)}
+        />
       </div>
     </main>
   );

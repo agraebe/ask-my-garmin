@@ -7,14 +7,26 @@ import type { Message } from '@/types';
 
 interface Props {
   funMode?: boolean;
+  isConnected: boolean;
+  onLoginRequired: (question: string) => void;
+  pendingQuestion?: string | null;
+  onPendingQuestionHandled?: () => void;
 }
 
-export default function ChatInterface({ funMode = false }: Props) {
+export default function ChatInterface({
+  funMode = false,
+  isConnected,
+  onLoginRequired,
+  pendingQuestion,
+  onPendingQuestionHandled,
+}: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Keep a stable ref so the auto-send effect always calls the latest sendMessage
+  const sendMessageRef = useRef<(q: string) => Promise<void>>(() => Promise.resolve());
 
   // Auto-scroll to the bottom whenever messages change
   useEffect(() => {
@@ -24,6 +36,11 @@ export default function ChatInterface({ funMode = false }: Props) {
   const sendMessage = useCallback(
     async (question: string) => {
       if (!question.trim() || isStreaming) return;
+
+      if (!isConnected) {
+        onLoginRequired(question);
+        return;
+      }
 
       const userMessage: Message = { role: 'user', content: question };
       const updatedHistory = [...messages, userMessage];
@@ -80,8 +97,21 @@ export default function ChatInterface({ funMode = false }: Props) {
         inputRef.current?.focus();
       }
     },
-    [messages, isStreaming, funMode]
+    [messages, isStreaming, funMode, isConnected, onLoginRequired]
   );
+
+  // Keep the ref in sync so the auto-send effect never closes over a stale sendMessage
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  });
+
+  // Auto-send the intercepted question once the user has logged in
+  useEffect(() => {
+    if (pendingQuestion && isConnected) {
+      onPendingQuestionHandled?.();
+      sendMessageRef.current(pendingQuestion);
+    }
+  }, [pendingQuestion, isConnected, onPendingQuestionHandled]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,9 +125,7 @@ export default function ChatInterface({ funMode = false }: Props) {
     }
   };
 
-  const accentFocus = funMode
-    ? 'focus:ring-rcj'
-    : 'focus:ring-garmin-blue';
+  const accentFocus = funMode ? 'focus:ring-rcj' : 'focus:ring-garmin-blue';
   const accentButton = funMode ? 'bg-rcj' : 'bg-garmin-blue';
 
   return (

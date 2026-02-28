@@ -1,37 +1,43 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import ChatInterface from './ChatInterface';
 
+// Default required props: user is connected, login callback is a no-op
+const defaultProps = {
+  isConnected: true,
+  onLoginRequired: vi.fn(),
+};
+
 describe('ChatInterface', () => {
   it('shows suggested questions when there are no messages', () => {
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     expect(screen.getByText('Ask My Garmin')).toBeInTheDocument();
   });
 
   it('renders the textarea and send button', () => {
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     expect(screen.getByPlaceholderText(/ask about your activities/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
   });
 
   it('disables the send button when input is empty', () => {
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
   });
 
   it('enables the send button when user types', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'Hello');
     expect(screen.getByRole('button', { name: /send/i })).toBeEnabled();
   });
 
   it('clears the input immediately after submitting', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     const input = screen.getByPlaceholderText(/ask about your activities/i);
     await user.type(input, 'How many miles?');
     await user.click(screen.getByRole('button', { name: /send/i }));
@@ -40,7 +46,7 @@ describe('ChatInterface', () => {
 
   it('displays the user message bubble after submitting', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'How many miles?');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -50,7 +56,7 @@ describe('ChatInterface', () => {
 
   it('shows the streamed assistant response', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'How many miles?');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -60,7 +66,7 @@ describe('ChatInterface', () => {
 
   it('hides suggested questions once messages are present', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'Hello');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -73,7 +79,7 @@ describe('ChatInterface', () => {
       http.post('/api/ask', () => HttpResponse.text('Service unavailable', { status: 503 }))
     );
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test question');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -83,7 +89,7 @@ describe('ChatInterface', () => {
 
   it('submits on Enter key press', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     const input = screen.getByPlaceholderText(/ask about your activities/i);
     await user.type(input, 'How many miles?');
     await user.keyboard('{Enter}');
@@ -94,7 +100,7 @@ describe('ChatInterface', () => {
 
   it('does not submit on Shift+Enter', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     const input = screen.getByPlaceholderText(/ask about your activities/i);
     await user.type(input, 'Hello');
     await user.keyboard('{Shift>}{Enter}{/Shift}');
@@ -104,7 +110,7 @@ describe('ChatInterface', () => {
 
   it('sends a question selected from suggested questions', async () => {
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.click(screen.getByText('How many miles did I run this week?'));
     await waitFor(() => {
       // User bubble shows the selected question
@@ -123,7 +129,7 @@ describe('ChatInterface', () => {
       })
     );
     const user = userEvent.setup();
-    render(<ChatInterface />);
+    render(<ChatInterface {...defaultProps} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -142,7 +148,7 @@ describe('ChatInterface', () => {
       })
     );
     const user = userEvent.setup();
-    render(<ChatInterface funMode={true} />);
+    render(<ChatInterface {...defaultProps} funMode={true} />);
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
@@ -151,7 +157,7 @@ describe('ChatInterface', () => {
   });
 
   it('shows RCJ suggested questions when funMode is true', () => {
-    render(<ChatInterface funMode={true} />);
+    render(<ChatInterface {...defaultProps} funMode={true} />);
     expect(screen.getByText('RunBot 9000')).toBeInTheDocument();
   });
 });
