@@ -5,10 +5,11 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import ChatInterface from './ChatInterface';
 
-// Default required props: user is connected, login callback is a no-op
+// Default required props: user is connected, callbacks are no-ops
 const defaultProps = {
   isConnected: true,
   onLoginRequired: vi.fn(),
+  onSessionExpired: vi.fn(),
 };
 
 describe('ChatInterface', () => {
@@ -85,6 +86,22 @@ describe('ChatInterface', () => {
     await waitFor(() => {
       expect(screen.getByText(/Error:/i)).toBeInTheDocument();
     });
+  });
+
+  it('calls onSessionExpired and restores messages when the API returns 401', async () => {
+    const onSessionExpired = vi.fn();
+    server.use(
+      http.post('/api/ask', () => HttpResponse.text('Session expired', { status: 401 }))
+    );
+    const user = userEvent.setup();
+    render(<ChatInterface {...defaultProps} onSessionExpired={onSessionExpired} />);
+    await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'my question');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() => {
+      expect(onSessionExpired).toHaveBeenCalledWith('my question');
+    });
+    // Messages should be restored to empty state (no user bubble)
+    expect(screen.queryByText('my question')).not.toBeInTheDocument();
   });
 
   it('submits on Enter key press', async () => {

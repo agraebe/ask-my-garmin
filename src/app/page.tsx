@@ -72,6 +72,13 @@ export default function Home() {
     checkStatus(); // background: fills in the email display
   }
 
+  function handleSessionExpired(question: string) {
+    sessionStorage.removeItem('garmin_session');
+    setAuthState('disconnected');
+    setPendingQuestion(question);
+    setShowLogin(true);
+  }
+
   function toggleFunMode() {
     const next = !funMode;
     setFunMode(next);
@@ -131,6 +138,7 @@ export default function Home() {
             setPendingQuestion(q);
             setShowLogin(true);
           }}
+          onSessionExpired={handleSessionExpired}
           pendingQuestion={pendingQuestion}
           onPendingQuestionHandled={() => setPendingQuestion(null)}
         />

@@ -145,6 +145,39 @@ def _resume_client_from_dir(client: garth.Client, directory: Path) -> None:
             pass
 
 
+# ── Auth error detection ──────────────────────────────────────────────────────
+
+
+def _is_auth_error(exc: Exception) -> bool:
+    """Return True if exc signals an invalid/expired Garmin token (HTTP 401 or 403).
+
+    garth wraps httpx.HTTPStatusError in GarthHTTPError, so we check via the
+    attribute chain exc.error.response.status_code before falling back to a
+    string match on the exception message.
+    """
+    # garth.exc.GarthHTTPError: exc.error is an httpx.HTTPStatusError
+    resp = getattr(getattr(exc, "error", None), "response", None)
+    if resp is not None and getattr(resp, "status_code", None) in (401, 403):
+        return True
+    # httpx.HTTPStatusError raised directly
+    resp = getattr(exc, "response", None)
+    if resp is not None and getattr(resp, "status_code", None) in (401, 403):
+        return True
+    # Fallback: look for status codes or keywords in the message
+    return _is_auth_error_msg(str(exc))
+
+
+def _is_auth_error_msg(msg: str) -> bool:
+    """Return True if a stringified error message indicates a Garmin 401/403."""
+    lower = msg.lower()
+    return (
+        "401" in lower
+        or "unauthorized" in lower
+        or "403" in lower
+        or "forbidden" in lower
+    )
+
+
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 # Simple in-memory rate limiter: max 5 login attempts per IP per 15 minutes.
 
@@ -300,9 +333,12 @@ async def auth_status(session_token: str | None = None) -> dict[str, Any]:
     """Check whether the session token represents a valid Garmin connection.
 
     Token validation (fast, no network) is done first.  If the token is valid
-    the user IS connected — we then do a best-effort Garmin API call with a
-    5-second timeout to fetch their email address.  A slow or failing Garmin
-    API must never flip `connected` to False for a valid token.
+    we then do a best-effort Garmin API call with a 5-second timeout to fetch
+    the user's email address.
+
+    A network timeout or transient Garmin error never flips `connected` to False
+    for a structurally valid token.  However, an explicit HTTP 401/403 response
+    from Garmin *does* flip it — the token has expired or been revoked.
     """
     if not session_token:
         return {"connected": False}
@@ -328,8 +364,14 @@ async def auth_status(session_token: str | None = None) -> dict[str, Any]:
         )
         email = profile.get("emailAddress", "") if isinstance(profile, dict) else ""
         return {"connected": True, "email": email}
-    except Exception:
-        # Garmin API unavailable or timed out — token is still valid
+    except asyncio.TimeoutError:
+        # Garmin API timed out — assume token is still valid
+        return {"connected": True}
+    except Exception as exc:
+        # Explicit 401/403 from Garmin means the token is definitively invalid
+        if _is_auth_error(exc):
+            return {"connected": False}
+        # Other errors (network, 5xx) — assume token is still valid
         return {"connected": True}
 
 
@@ -361,6 +403,19 @@ async def ask(body: AskRequest) -> StreamingResponse:
         )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Garmin data unavailable: {exc}")
+
+    # If every individual Garmin call failed with an auth error the token has
+    # expired (e.g. after a server restart without a persistent SESSION_SECRET,
+    # or after Garmin revokes the OAuth token).  Return 401 so the client can
+    # prompt the user to re-authenticate rather than showing a confusing
+    # "authentication error across the board" message from Claude.
+    profile_result = garmin_data.get("profile")
+    if isinstance(profile_result, dict) and "error" in profile_result:
+        if _is_auth_error_msg(profile_result["error"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Garmin session expired — please sign in again",
+            )
 
     # Re-serialize the client in case OAuth tokens were refreshed during data fetch
     try:

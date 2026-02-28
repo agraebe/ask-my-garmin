@@ -9,6 +9,7 @@ interface Props {
   funMode?: boolean;
   isConnected: boolean;
   onLoginRequired: (question: string) => void;
+  onSessionExpired: (question: string) => void;
   pendingQuestion?: string | null;
   onPendingQuestionHandled?: () => void;
 }
@@ -17,6 +18,7 @@ export default function ChatInterface({
   funMode = false,
   isConnected,
   onLoginRequired,
+  onSessionExpired,
   pendingQuestion,
   onPendingQuestionHandled,
 }: Props) {
@@ -72,6 +74,17 @@ export default function ChatInterface({
           sessionStorage.setItem('garmin_session', updatedToken);
         }
 
+        // 401 means the Garmin session has expired (e.g. server restart rotated
+        // SESSION_SECRET, or Garmin revoked the OAuth token).  Clear the stale
+        // token, restore messages to before this attempt, and open the login
+        // modal so the user can re-authenticate without losing their question.
+        if (response.status === 401) {
+          sessionStorage.removeItem('garmin_session');
+          setMessages(messages);
+          onSessionExpired(question);
+          return;
+        }
+
         if (!response.ok) {
           const text = await response.text();
           throw new Error(text || `HTTP ${response.status}`);
@@ -97,7 +110,7 @@ export default function ChatInterface({
         inputRef.current?.focus();
       }
     },
-    [messages, isStreaming, funMode, isConnected, onLoginRequired]
+    [messages, isStreaming, funMode, isConnected, onLoginRequired, onSessionExpired]
   );
 
   // Keep the ref in sync so the auto-send effect never closes over a stale sendMessage

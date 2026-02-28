@@ -124,3 +124,10 @@ export async function mockChat(page: Page, response = 'This is a streamed respon
 export async function mockChatError(page: Page, status = 503, message = 'Service unavailable') {
   await page.route('/api/ask', (route) => route.fulfill({ status, body: message }));
 }
+
+/** Simulate an expired/invalid Garmin session (401 from /api/ask). */
+export async function mockChatSessionExpired(page: Page) {
+  await page.route('/api/ask', (route) =>
+    route.fulfill({ status: 401, body: 'Garmin session expired — please sign in again' })
+  );
+}

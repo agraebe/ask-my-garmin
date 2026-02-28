@@ -14,7 +14,9 @@ import {
   mockLoginFailure,
   mockLogout,
   mockChat,
+  mockChatSessionExpired,
   FAKE_EMAIL,
+  FAKE_SESSION_TOKEN,
 } from './fixtures';
 
 // ── Login modal trigger ───────────────────────────────────────────────────────
@@ -163,6 +165,82 @@ test('2FA: Back button returns to credentials step', async ({ page }) => {
   await page.getByRole('button', { name: /back/i }).click();
 
   await expect(page.getByLabel('Email')).toBeVisible();
+});
+
+// ── Expired session recovery ──────────────────────────────────────────────────
+
+test('expired session triggers re-login modal when sending a message', async ({ page }) => {
+  // User appears connected but the backend session has expired
+  await mockConnected(page);
+  await mockChatSessionExpired(page);
+  await page.goto('/');
+
+  // Confirm we start in connected state
+  await expect(page.getByText('Connected')).toBeVisible();
+
+  // Sending a message should hit the 401 and open the login modal
+  await page.getByPlaceholder(/ask about your activities/i).fill('How many miles?');
+  await page.getByRole('button', { name: /send/i }).click();
+
+  await expect(page.getByText('Connect your Garmin account')).toBeVisible({ timeout: 5000 });
+});
+
+test('re-login after expired session auto-sends the original question', async ({ page }) => {
+  // User appears connected, but first /api/ask call returns 401 (expired session).
+  // After re-login the question should be auto-sent and answered.
+  let askCallCount = 0;
+  let loggedIn = false;
+
+  await page.route('/api/auth/status*', (route) => {
+    if (loggedIn) {
+      route.fulfill({ status: 200, json: { connected: true, email: FAKE_EMAIL } });
+    } else {
+      // Initially "connected" (token in sessionStorage, but backend will reject it)
+      route.fulfill({ status: 200, json: { connected: true, email: FAKE_EMAIL } });
+    }
+  });
+
+  await page.route('/api/ask', (route) => {
+    askCallCount++;
+    if (askCallCount === 1) {
+      // First call: session expired
+      route.fulfill({ status: 401, body: 'Garmin session expired — please sign in again' });
+    } else {
+      // Subsequent calls: success
+      route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Session-Token': FAKE_SESSION_TOKEN,
+        },
+        body: 'You ran 25 miles this week.',
+      });
+    }
+  });
+
+  await page.route('/api/auth/login', (route) => {
+    loggedIn = true;
+    route.fulfill({
+      status: 200,
+      json: { status: 'ok', session_token: FAKE_SESSION_TOKEN },
+    });
+  });
+
+  await page.goto('/');
+
+  // Ask a question — hits 401, login modal should appear
+  await page.getByPlaceholder(/ask about your activities/i).fill('How many miles?');
+  await page.getByRole('button', { name: /send/i }).click();
+  await expect(page.getByText('Connect your Garmin account')).toBeVisible({ timeout: 5000 });
+
+  // Log in again
+  await page.getByLabel('Email').fill('athlete@example.com');
+  await page.getByLabel('Password').fill('password123');
+  await page.getByRole('button', { name: /sign in/i }).click();
+
+  // Original question should be auto-sent and answered
+  await expect(page.getByText('How many miles?')).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText('You ran 25 miles this week.')).toBeVisible({ timeout: 5000 });
 });
 
 // ── Logout ────────────────────────────────────────────────────────────────────
