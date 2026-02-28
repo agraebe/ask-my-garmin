@@ -34,6 +34,29 @@ jobs:
         with:
           fetch-depth: 0 # full history so Claude can branch from the right base
 
+      - name: Write MCP config
+        run: |
+          cat > /tmp/mcp-config.json << EOF
+          {
+            "mcpServers": {
+              "vercel": {
+                "command": "npx",
+                "args": ["-y", "mcp-remote", "https://mcp.vercel.com", "--header", "Authorization:Bearer $VERCEL_TOKEN"]
+              },
+              "railway": {
+                "command": "npx",
+                "args": ["-y", "@railway/mcp-server"],
+                "env": {
+                  "RAILWAY_TOKEN": "$RAILWAY_TOKEN"
+                }
+              }
+            }
+          }
+          EOF
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -42,6 +65,7 @@ jobs:
           # No explicit github_token — lets the installed GitHub App be used automatically,
           # so Claude's commits appear as claude[bot] and can trigger CI workflows.
           claude_args: |
+            --mcp-config /tmp/mcp-config.json
             --append-system-prompt "Read CLAUDE.md and AGENTS.md before making any changes.
 
             Implementation workflow:
@@ -49,6 +73,14 @@ jobs:
             2. Make minimal changes — do not refactor unrelated code.
             3. Run: npm run typecheck && npm run lint && npm run build (all must pass).
             4. Open a PR with 'Closes #<issue-number>' in the body, imperative title ≤ 70 chars.
+
+            Bug investigation protocol (MANDATORY for any bug report or error):
+            - BEFORE writing any code, always investigate logs first:
+              1. Use the Railway MCP tools to fetch recent service logs — look for errors, exceptions, and stack traces.
+              2. Use the Vercel MCP tools to fetch deployment logs and runtime function logs — check for build failures and serverless function errors.
+              3. Identify the exact error message from logs and include it in your root cause analysis.
+              4. Only proceed to a fix after confirming the root cause from actual log output.
+            - If MCP tools are unavailable, note this and fall back to code analysis.
 
             Hard rules (never violate):
             - Never commit .env or credentials.

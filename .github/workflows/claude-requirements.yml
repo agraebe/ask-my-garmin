@@ -25,10 +25,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Write MCP config
+        run: |
+          cat > /tmp/mcp-config.json << EOF
+          {
+            "mcpServers": {
+              "vercel": {
+                "command": "npx",
+                "args": ["-y", "mcp-remote", "https://mcp.vercel.com", "--header", "Authorization:Bearer $VERCEL_TOKEN"]
+              },
+              "railway": {
+                "command": "npx",
+                "args": ["-y", "@railway/mcp-server"],
+                "env": {
+                  "RAILWAY_TOKEN": "$RAILWAY_TOKEN"
+                }
+              }
+            }
+          }
+          EOF
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
+          claude_args: --mcp-config /tmp/mcp-config.json
           prompt: |
             Read CLAUDE.md to understand the project. Then analyze this issue carefully.
 
@@ -56,7 +80,10 @@ jobs:
 
             Rules:
             - Do NOT write any code. This is analysis only.
-            - If it's a bug report, add a "Root Cause Hypothesis" section.
+            - If it's a bug report, add a "Root Cause Hypothesis" section. For bug reports,
+              FIRST use the Railway and Vercel MCP tools to check recent logs for relevant
+              errors or stack traces, then base your hypothesis on actual log evidence.
+              Quote specific log lines if found.
             - If it involves a new Garmin data source, note which garth endpoint to call
               and what type to add to src/types/index.ts.
             - Keep the whole comment under 400 words.

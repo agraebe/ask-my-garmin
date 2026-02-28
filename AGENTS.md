@@ -42,6 +42,16 @@ ANTHROPIC_API_KEY  # Anthropic API key
 
 None of these should ever appear in committed code or logs.
 
+## Required GitHub repository secrets
+
+| Secret              | Purpose                                       | Where to generate                   |
+| ------------------- | --------------------------------------------- | ----------------------------------- |
+| `ANTHROPIC_API_KEY` | All Claude workflows                          | Anthropic console                   |
+| `VERCEL_TOKEN`      | Claude MCP — Vercel deployment & runtime logs | Vercel → Account Settings → Tokens  |
+| `RAILWAY_TOKEN`     | Claude MCP — Railway service & build logs     | Railway → Account Settings → Tokens |
+
+None of these should ever appear in committed code or logs.
+
 ## How to verify your changes work
 
 ```bash

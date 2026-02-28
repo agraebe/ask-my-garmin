@@ -21,9 +21,33 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Write MCP config
+        run: |
+          cat > /tmp/mcp-config.json << EOF
+          {
+            "mcpServers": {
+              "vercel": {
+                "command": "npx",
+                "args": ["-y", "mcp-remote", "https://mcp.vercel.com", "--header", "Authorization:Bearer $VERCEL_TOKEN"]
+              },
+              "railway": {
+                "command": "npx",
+                "args": ["-y", "@railway/mcp-server"],
+                "env": {
+                  "RAILWAY_TOKEN": "$RAILWAY_TOKEN"
+                }
+              }
+            }
+          }
+          EOF
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --mcp-config /tmp/mcp-config.json
           prompt: |
             Read CLAUDE.md and AGENTS.md, then perform a thorough code review of this PR.
 
@@ -61,6 +85,10 @@ jobs:
             - [ ] PR description explains *why*, not just *what*
             - [ ] "Closes #issue" link present if this fixes an issue
             - [ ] PR template checklist items filled in
+
+            **Deployment health** (check if CI failed or deployment issues exist)
+            - If CI is failing, use Railway and Vercel MCP tools to check recent logs for
+              relevant errors before commenting on the cause.
 
             Post your review as a PR review (APPROVE, REQUEST_CHANGES, or COMMENT).
             - Approve only if all checklist items pass.
