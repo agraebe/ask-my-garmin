@@ -297,23 +297,40 @@ async def submit_mfa(body: MFARequest) -> dict[str, Any]:
 
 @app.get("/api/auth/status")
 async def auth_status(session_token: str | None = None) -> dict[str, Any]:
-    """Check whether the session token represents a valid Garmin connection."""
+    """Check whether the session token represents a valid Garmin connection.
+
+    Token validation (fast, no network) is done first.  If the token is valid
+    the user IS connected — we then do a best-effort Garmin API call with a
+    5-second timeout to fetch their email address.  A slow or failing Garmin
+    API must never flip `connected` to False for a valid token.
+    """
     if not session_token:
         return {"connected": False}
+
+    # --- Step 1: validate token (fast, no network) ---
     try:
         token_json = _decrypt_tokens(session_token)
         client = _deserialize_garth_client(token_json)
+    except Exception:
+        return {"connected": False}
+
+    # --- Step 2: best-effort email fetch with a hard timeout ---
+    try:
         loop = asyncio.get_event_loop()
-        profile = await loop.run_in_executor(
-            None,
-            lambda: client.connectapi(
-                "/userprofile-service/userprofile/personal-information"
+        profile = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: client.connectapi(
+                    "/userprofile-service/userprofile/personal-information"
+                ),
             ),
+            timeout=5.0,
         )
         email = profile.get("emailAddress", "") if isinstance(profile, dict) else ""
         return {"connected": True, "email": email}
-    except Exception as exc:
-        return {"connected": False, "error": str(exc)}
+    except Exception:
+        # Garmin API unavailable or timed out — token is still valid
+        return {"connected": True}
 
 
 @app.post("/api/auth/logout")

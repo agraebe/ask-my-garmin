@@ -68,7 +68,8 @@ export default function Home() {
   function handleLoginSuccess(token: string) {
     sessionStorage.setItem('garmin_session', token);
     setShowLogin(false);
-    checkStatus();
+    setAuthState('connected'); // optimistic: login just succeeded
+    checkStatus(); // background: fills in the email display
   }
 
   function toggleFunMode() {

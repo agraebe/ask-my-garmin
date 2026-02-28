@@ -1,0 +1,101 @@
+name: Nightly E2E Tests
+
+on:
+  schedule:
+    # 02:00 UTC every day
+    - cron: '0 2 * * *'
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        id: e2e
+        run: npm run e2e
+        env:
+          CI: 'true'
+          # Point at live deployments for full-stack service checks.
+          # These are optional — service tests are skipped when unset.
+          VERCEL_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
+          RAILWAY_URL: ${{ vars.RAILWAY_PRODUCTION_URL }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14
+
+  # If the e2e job failed, open a GitHub Issue and tag @claude for auto-fix.
+  open-fix-issue:
+    name: Open auto-fix issue on failure
+    needs: e2e
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Create GitHub Issue for Claude auto-fix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const reportArtifactUrl = `${runUrl}#artifacts`;
+
+            const body = [
+              '## 🔴 Nightly E2E Tests Failed',
+              '',
+              `**Workflow run:** ${runUrl}`,
+              `**Playwright report:** ${reportArtifactUrl}`,
+              '',
+              '### What happened',
+              'The nightly Playwright end-to-end test suite failed on `main`.',
+              'The full test report and failure screenshots are attached to the workflow run above.',
+              '',
+              '### What to do',
+              '@claude Please:',
+              '1. Download and review the Playwright report artifact from the workflow run linked above.',
+              '2. Check Vercel runtime logs and Railway service logs via MCP for any server-side errors coinciding with the test run.',
+              '3. Identify the root cause of the failure.',
+              '4. Fix the bug in a new branch and open a PR that closes this issue.',
+              '',
+              '> This issue was opened automatically by the nightly E2E workflow.',
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Nightly E2E] Test failure on ${new Date().toISOString().slice(0, 10)}`,
+              body,
+              labels: ['bug', 'automated'],
+            });

@@ -32,5 +32,9 @@ backend/*.pyc
 backend/.venv/
 *.egg-info/
 
+# playwright
+/playwright-report/
+/test-results/
+
 # misc
 .DS_Store
