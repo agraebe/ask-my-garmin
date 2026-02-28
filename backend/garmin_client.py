@@ -5,10 +5,13 @@ All functions accept a garth.Client instance so each user's session is
 isolated — no shared global state.
 """
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
 import garth
+
+logger = logging.getLogger(__name__)
 
 
 def _today() -> str:
@@ -88,6 +91,7 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
             "email": profile.get("emailAddress", ""),
         }
     except Exception as e:
+        logger.error("garmin fetch failed [profile]: %s: %s", type(e).__name__, e, exc_info=True)
         data["profile"] = {"error": str(e)}
 
     # Recent activities (paginated up to 200)
@@ -95,12 +99,14 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
         activities = get_recent_activities(client, 200)
         data["recentActivities"] = [_format_activity(a) for a in activities]
     except Exception as e:
+        logger.error("garmin fetch failed [recentActivities]: %s: %s", type(e).__name__, e, exc_info=True)
         data["recentActivities"] = {"error": str(e)}
 
     # Today's daily summary (steps, calories, floors, HR)
     try:
         data["todayStats"] = get_daily_summary(client, display_name, today)
     except Exception as e:
+        logger.error("garmin fetch failed [todayStats]: %s: %s", type(e).__name__, e, exc_info=True)
         data["todayStats"] = {"error": str(e)}
 
     # Last night's sleep
@@ -108,6 +114,7 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
         yesterday = _date_str(1)
         data["lastNightSleep"] = get_sleep_data(client, display_name, yesterday)
     except Exception as e:
+        logger.error("garmin fetch failed [lastNightSleep]: %s: %s", type(e).__name__, e, exc_info=True)
         data["lastNightSleep"] = {"error": str(e)}
 
     # Heart rate zones derived from user settings
@@ -118,12 +125,14 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
         resting_hr = user_data.get("restingHeartRate", 60)
         data["heartRateZones"] = _compute_hr_zones(max_hr, resting_hr)
     except Exception as e:
+        logger.error("garmin fetch failed [heartRateZones]: %s: %s", type(e).__name__, e, exc_info=True)
         data["heartRateZones"] = {"error": str(e)}
 
     # Training status: load, recovery, VO2 max from Garmin's metrics service
     try:
         data["trainingStatus"] = get_training_status(client, today)
     except Exception as e:
+        logger.error("garmin fetch failed [trainingStatus]: %s: %s", type(e).__name__, e, exc_info=True)
         data["trainingStatus"] = {"error": str(e)}
 
     data["fetchedAt"] = today

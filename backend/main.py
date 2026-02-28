@@ -14,6 +14,7 @@ Run with:
 import asyncio
 import datetime
 import json
+import logging
 import os
 import tempfile
 import threading
@@ -31,6 +32,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import garmin_client
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # ── Session encryption ────────────────────────────────────────────────────────
 # SESSION_SECRET must be a URL-safe base64-encoded 32-byte key.
@@ -81,7 +89,7 @@ def _serialize_garth_client(client: garth.Client) -> str:
                 file_tokens[f.name] = f.read_text()
         return json.dumps(file_tokens)
     except AttributeError:
-        pass
+        logger.info("garth client.save() not available, falling back to direct attribute read")
 
     # Fallback: read token objects directly from client attributes
     direct_tokens: dict[str, str] = {}
@@ -115,6 +123,7 @@ def _deserialize_garth_client(token_json: str) -> garth.Client:
         try:
             client.resume(tmp)
         except AttributeError:
+            logger.info("garth client.resume() not available, falling back to direct attribute load")
             _resume_client_from_dir(client, Path(tmp))
     return client
 
@@ -240,8 +249,10 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         _original_input = builtins.input
 
         def _mfa_input(_text: str = "") -> str:
+            logger.info("login[%s]: 2FA required, waiting for MFA code", session_id)
             mfa_needed.set()
             mfa_provided.wait(timeout=300)  # wait up to 5 min
+            logger.info("login[%s]: MFA code received", session_id)
             return session["mfa_code"] or ""
 
         builtins.input = _mfa_input
@@ -249,7 +260,9 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
             per_session_client.login(body.email, body.password)
             session["token_json"] = _serialize_garth_client(per_session_client)
             session["success"] = True
+            logger.info("login[%s]: Garmin auth succeeded", session_id)
         except Exception as exc:
+            logger.error("login[%s]: Garmin auth failed: %s: %s", session_id, type(exc).__name__, exc, exc_info=True)
             session["error"] = str(exc)
         finally:
             builtins.input = _original_input
@@ -288,10 +301,12 @@ async def submit_mfa(body: MFARequest) -> dict[str, Any]:
 
     _login_sessions.pop(body.session_id, None)
     if session["success"] and session["token_json"]:
+        logger.info("mfa[%s]: verification succeeded, issuing session token", body.session_id)
         return {
             "status": "ok",
             "session_token": _encrypt_tokens(session["token_json"]),
         }
+    logger.error("mfa[%s]: verification failed: %s", body.session_id, session["error"])
     raise HTTPException(status_code=401, detail=session["error"] or "MFA verification failed")
 
 
@@ -311,7 +326,8 @@ async def auth_status(session_token: str | None = None) -> dict[str, Any]:
     try:
         token_json = _decrypt_tokens(session_token)
         client = _deserialize_garth_client(token_json)
-    except Exception:
+    except Exception as e:
+        logger.warning("auth_status: token decryption/deserialization failed: %s: %s", type(e).__name__, e)
         return {"connected": False}
 
     # --- Step 2: best-effort email fetch with a hard timeout ---
@@ -328,8 +344,9 @@ async def auth_status(session_token: str | None = None) -> dict[str, Any]:
         )
         email = profile.get("emailAddress", "") if isinstance(profile, dict) else ""
         return {"connected": True, "email": email}
-    except Exception:
+    except Exception as e:
         # Garmin API unavailable or timed out — token is still valid
+        logger.warning("auth_status: Garmin profile fetch failed (token still valid): %s: %s", type(e).__name__, e)
         return {"connected": True}
 
 
@@ -351,7 +368,8 @@ async def ask(body: AskRequest) -> StreamingResponse:
     try:
         token_json = _decrypt_tokens(body.session_token)
         ephemeral_client = _deserialize_garth_client(token_json)
-    except Exception:
+    except Exception as e:
+        logger.error("ask: token decryption/deserialization failed: %s: %s", type(e).__name__, e, exc_info=True)
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
 
     loop = asyncio.get_event_loop()
@@ -360,12 +378,21 @@ async def ask(body: AskRequest) -> StreamingResponse:
             None, garmin_client.get_all_data, ephemeral_client
         )
     except Exception as exc:
+        logger.error("ask: garmin_client.get_all_data raised unexpectedly: %s: %s", type(exc).__name__, exc, exc_info=True)
         raise HTTPException(status_code=503, detail=f"Garmin data unavailable: {exc}")
+
+    # Log any fields that errored so we can see patterns in Railway logs
+    error_fields = [k for k, v in garmin_data.items() if isinstance(v, dict) and "error" in v]
+    if error_fields:
+        logger.warning("ask: %d garmin field(s) returned errors: %s", len(error_fields), error_fields)
+        for field in error_fields:
+            logger.warning("ask: garmin[%s] error = %s", field, garmin_data[field]["error"])
 
     # Re-serialize the client in case OAuth tokens were refreshed during data fetch
     try:
         updated_session_token = _encrypt_tokens(_serialize_garth_client(ephemeral_client))
-    except Exception:
+    except Exception as e:
+        logger.warning("ask: could not re-serialize garth client: %s: %s", type(e).__name__, e)
         updated_session_token = body.session_token  # fall back to original
 
     messages = [
