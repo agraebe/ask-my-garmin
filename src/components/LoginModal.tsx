@@ -75,11 +75,13 @@ export default function LoginModal({ onSuccess }: Props) {
     setLoading(true);
     setError('');
 
+    const digits = mfaCode.replace(/\D/g, '');
+
     try {
       const res = await fetch('/api/auth/mfa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, code: mfaCode }),
+        body: JSON.stringify({ session_id: sessionId, code: digits }),
       });
       const data = await res.json();
 
@@ -186,10 +188,7 @@ export default function LoginModal({ onSuccess }: Props) {
         ) : (
           <form onSubmit={handleMfa} className="flex flex-col gap-4">
             <div>
-              <label
-                htmlFor="mfa-code"
-                className="mb-1 block text-sm font-medium text-garmin-text"
-              >
+              <label htmlFor="mfa-code" className="mb-1 block text-sm font-medium text-garmin-text">
                 Verification code
               </label>
               <input
@@ -197,10 +196,9 @@ export default function LoginModal({ onSuccess }: Props) {
                 type="text"
                 required
                 inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={8}
+                maxLength={6}
                 value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value)}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
                 autoFocus
                 placeholder="000000"
                 className="w-full rounded-lg border border-garmin-border bg-garmin-bg px-4 py-2.5 text-center font-mono text-lg tracking-widest text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-garmin-blue"
