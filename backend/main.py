@@ -12,16 +12,13 @@ Run with:
 """
 
 import asyncio
-import datetime
 import json
 import logging
 import os
-import tempfile
 import threading
 import time
 import uuid
 import warnings
-from pathlib import Path
 from typing import Any
 
 logging.basicConfig(
@@ -56,13 +53,6 @@ else:
     )
 
 
-def _json_serial(obj: object) -> str:
-    """JSON serializer for types not handled by default (e.g. datetime)."""
-    if isinstance(obj, (datetime.datetime, datetime.date)):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-
 def _encrypt_tokens(token_json: str) -> str:
     return _fernet.encrypt(token_json.encode()).decode()
 
@@ -72,91 +62,81 @@ def _decrypt_tokens(blob: str) -> str:
 
 
 def _serialize_garth_client(client: garth.Client) -> str:
-    """Serialize garth client OAuth tokens to a JSON string.
+    """Serialize garth client OAuth tokens to a JSON string (no filesystem I/O).
 
-    Tries save() first for maximum compatibility, then falls back to directly
-    reading oauth1_token / oauth2_token attributes (garth versions that lack save()).
+    Uses garth.Client.dumps() which base64-encodes both tokens into a single
+    string.  We wrap it in a JSON envelope so the format is explicit and
+    extensible.  The envelope key is "dumps_b64" to distinguish it from the
+    legacy file-based format (keys "oauth1_token.json" / "oauth2_token.json").
     """
-    import dataclasses
-
-    # Primary: use save() if available
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            client.save(tmp)
-            file_tokens: dict[str, str] = {}
-            for f in Path(tmp).iterdir():
-                file_tokens[f.name] = f.read_text()
-        return json.dumps(file_tokens)
-    except AttributeError:
-        pass
-
-    # Fallback: read token objects directly from client attributes
-    direct_tokens: dict[str, str] = {}
-    for attr, filename in (
-        ("oauth1_token", "oauth1_token.json"),
-        ("oauth2_token", "oauth2_token.json"),
-    ):
-        token = getattr(client, attr, None)
-        if token is None:
-            continue
-        if hasattr(token, "json"):
-            direct_tokens[filename] = token.json
-        elif dataclasses.is_dataclass(token):
-            direct_tokens[filename] = json.dumps(dataclasses.asdict(token), default=_json_serial)
-        elif hasattr(token, "model_dump_json"):
-            direct_tokens[filename] = token.model_dump_json()
-    return json.dumps(direct_tokens)
+    blob = client.dumps()
+    return json.dumps({"dumps_b64": blob})
 
 
 def _deserialize_garth_client(token_json: str) -> garth.Client:
-    """Restore a garth client from a serialized token JSON string.
+    """Restore a garth client from a serialized token JSON string (no filesystem I/O).
 
-    garth.save() produces files named 'oauth1_token.json' / 'oauth2_token.json'
-    but garth.resume() looks for 'oauth1_token' / 'oauth2_token' (no extension),
-    causing a silent mismatch where resume() succeeds but loads nothing.
-    We detect that and fall back to _resume_client_from_dir which handles
-    both naming conventions.
+    Handles two formats for backward compatibility:
+      - New format (v2): {"dumps_b64": "<base64 string from client.dumps()>"}
+      - Legacy format (v1): {"oauth1_token.json": "<json>", "oauth2_token.json": "<json>"}
+        Keys may also appear without the ".json" suffix.
+
+    Raises ValueError if the token data cannot be parsed or if token classes
+    cannot be located — callers must handle this and return an appropriate
+    HTTP error rather than silently swallowing it.
     """
-    tokens = json.loads(token_json)
+    try:
+        envelope = json.loads(token_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Session token is not valid JSON: {exc}") from exc
+
     client = garth.Client()
-    with tempfile.TemporaryDirectory() as tmp:
-        for name, content in tokens.items():
-            (Path(tmp) / name).write_text(content)
+
+    # ── New format: garth.Client.dumps() blob ────────────────────────────────
+    if "dumps_b64" in envelope:
         try:
-            client.resume(tmp)
-        except Exception:
-            pass
-        # If resume() silently loaded nothing (naming mismatch), use the fallback
-        # which explicitly looks for the .json-suffixed files.
-        if not getattr(client, "oauth1_token", None):
-            _resume_client_from_dir(client, Path(tmp))
-    return client
+            client.loads(envelope["dumps_b64"])
+        except Exception as exc:
+            logger.error("Failed to load garth client from dumps_b64: %s", exc, exc_info=True)
+            raise ValueError(f"Could not restore garth client from session token: {exc}") from exc
+        return client
 
-
-def _resume_client_from_dir(client: garth.Client, directory: Path) -> None:
-    """Load token files directly into client attributes (fallback for missing resume())."""
-    import importlib
+    # ── Legacy format: per-file JSON stored under .json-suffixed keys ────────
+    # Strip ".json" suffix from keys to normalise both v1a ("oauth1_token.json")
+    # and v1b ("oauth1_token") variants produced by older server versions.
+    normalised: dict[str, str] = {
+        (k[: -len(".json")] if k.endswith(".json") else k): v for k, v in envelope.items()
+    }
 
     try:
-        auth = importlib.import_module("garth.auth")
-    except ImportError:
-        return
+        from garth.auth_tokens import OAuth1Token, OAuth2Token
+    except ImportError as exc:
+        logger.error("Cannot import garth token classes for legacy deserialization: %s", exc)
+        raise ValueError(f"garth token classes not importable: {exc}") from exc
 
-    for filename, attr, class_name in (
-        ("oauth1_token.json", "oauth1_token", "OAuth1Token"),
-        ("oauth2_token.json", "oauth2_token", "OAuth2Token"),
+    import dataclasses
+
+    for attr, cls, key in (
+        ("oauth1_token", OAuth1Token, "oauth1_token"),
+        ("oauth2_token", OAuth2Token, "oauth2_token"),
     ):
-        filepath = directory / filename
-        if not filepath.exists():
-            continue
-        TokenClass = getattr(auth, class_name, None)
-        if TokenClass is None:
+        raw = normalised.get(key)
+        if raw is None:
+            logger.warning("Legacy session token missing key %r", key)
             continue
         try:
-            data = json.loads(filepath.read_text())
-            setattr(client, attr, TokenClass(**data))
-        except Exception:
-            pass
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            # OAuth1Token has a datetime field; strip unknown keys defensively.
+            field_names = {f.name for f in dataclasses.fields(cls)}
+            filtered = {k: v for k, v in data.items() if k in field_names}
+            setattr(client, attr, cls(**filtered))
+        except Exception as exc:
+            logger.error(
+                "Failed to reconstruct %s from legacy token data: %s", attr, exc, exc_info=True
+            )
+            raise ValueError(f"Could not reconstruct {attr}: {exc}") from exc
+
+    return client
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
