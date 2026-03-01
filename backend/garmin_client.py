@@ -94,9 +94,9 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
         logger.error("Garmin profile fetch failed: %s", e, exc_info=True)
         data["profile"] = {"error": str(e)}
 
-    # Recent activities (paginated up to 200)
+    # Recent activities (limit to 20 to stay within Claude's context window)
     try:
-        activities = get_recent_activities(client, 200)
+        activities = get_recent_activities(client, 20)
         data["recentActivities"] = [_format_activity(a) for a in activities]
     except Exception as e:
         logger.error("Garmin activities fetch failed: %s", e, exc_info=True)
@@ -142,10 +142,30 @@ def get_all_data(client: garth.Client) -> dict[str, Any]:
 def _format_activity(a: dict[str, Any]) -> dict[str, Any]:
     dist_m = a.get("distance", 0) or 0
     dur_s = a.get("duration", 0) or 0
+    avg_pace_s = (dur_s / (dist_m / 1609.344)) if dist_m > 0 else None
     return {
-        **a,
+        "activityId": a.get("activityId"),
+        "activityName": a.get("activityName"),
+        "activityType": (a.get("activityType") or {}).get("typeKey"),
+        "startTimeLocal": a.get("startTimeLocal"),
         "distanceMiles": round(dist_m / 1609.344, 2),
         "durationFormatted": _format_duration(dur_s),
+        "durationSeconds": dur_s,
+        "averagePaceMinPerMile": round(avg_pace_s / 60, 2) if avg_pace_s else None,
+        "averageHR": a.get("averageHR"),
+        "maxHR": a.get("maxHR"),
+        "calories": a.get("calories"),
+        "averageSpeed": a.get("averageSpeed"),
+        "elevationGain": a.get("elevationGain"),
+        "aerobicTrainingEffect": a.get("aerobicTrainingEffect"),
+        "anaerobicTrainingEffect": a.get("anaerobicTrainingEffect"),
+        "vo2MaxValue": a.get("vO2MaxValue"),
+        "avgStrideLength": a.get("avgStrideLength"),
+        "avgVerticalOscillation": a.get("avgVerticalOscillation"),
+        "avgGroundContactTime": a.get("avgGroundContactTime"),
+        "avgRunCadence": a.get("avgRunCadence"),
+        "trainingStressScore": a.get("trainingStressScore"),
+        "description": a.get("description"),
     }
 
 

@@ -58,8 +58,8 @@ describe('LoginModal', () => {
 
     await waitFor(() => expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument());
 
+    // Typing all 6 digits triggers auto-submit — no need to click Verify
     await user.type(screen.getByLabelText(/verification code/i), '123456');
-    await user.click(screen.getByRole('button', { name: /verify/i }));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
   });

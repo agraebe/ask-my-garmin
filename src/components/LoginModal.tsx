@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   onSuccess: (token: string) => void;
@@ -37,6 +37,17 @@ export default function LoginModal({ onSuccess }: Props) {
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const mfaFormRef = useRef<HTMLFormElement>(null);
+
+  // Auto-submit MFA form once all 6 digits are entered.
+  // Only re-run when mfaCode/step changes — not when loading flips back to false,
+  // which would cause an infinite submit loop.
+  useEffect(() => {
+    if (step === 'mfa' && mfaCode.length === 6 && !loading) {
+      mfaFormRef.current?.requestSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mfaCode, step]);
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
@@ -186,7 +197,7 @@ export default function LoginModal({ onSuccess }: Props) {
             </p>
           </form>
         ) : (
-          <form onSubmit={handleMfa} className="flex flex-col gap-4">
+          <form ref={mfaFormRef} onSubmit={handleMfa} className="flex flex-col gap-4">
             <div>
               <label htmlFor="mfa-code" className="mb-1 block text-sm font-medium text-garmin-text">
                 Verification code

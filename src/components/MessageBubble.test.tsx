@@ -23,9 +23,18 @@ describe('MessageBubble', () => {
     expect(container.querySelector('svg')).not.toBeInTheDocument();
   });
 
-  it('applies streaming cursor class when isStreaming=true', () => {
+  it('shows thinking dots when isStreaming=true with empty content', () => {
     const { container } = render(
       <MessageBubble message={{ role: 'assistant', content: '' }} isStreaming />
+    );
+    // Three bouncing dots rendered as spans
+    expect(container.querySelectorAll('.animate-bounce')).toHaveLength(3);
+    expect(container.querySelector('.cursor-blink')).not.toBeInTheDocument();
+  });
+
+  it('applies streaming cursor class when isStreaming=true with content', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: 'Hello' }} isStreaming />
     );
     expect(container.querySelector('.cursor-blink')).toBeInTheDocument();
   });

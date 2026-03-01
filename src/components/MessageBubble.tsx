@@ -33,13 +33,21 @@ export default function MessageBubble({ message, isStreaming = false }: Props) {
       )}
 
       <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[75%] ${
+        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[75%] ${
           isUser
             ? 'rounded-br-sm bg-garmin-blue text-white'
             : 'rounded-bl-sm border border-garmin-border bg-garmin-surface text-garmin-text shadow-sm'
-        } ${isStreaming ? 'cursor-blink' : ''} `}
+        } ${isStreaming && message.content ? 'cursor-blink' : ''}`}
       >
-        {message.content || (isStreaming ? '' : '…')}
+        {isStreaming && !message.content ? (
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 animate-bounce rounded-full bg-garmin-text-muted [animation-delay:-0.3s]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-garmin-text-muted [animation-delay:-0.15s]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-garmin-text-muted" />
+          </span>
+        ) : (
+          <span className="whitespace-pre-wrap">{message.content || '…'}</span>
+        )}
       </div>
     </div>
   );
