@@ -140,9 +140,8 @@ test('2FA flow: advances to MFA step then logs in', async ({ page }) => {
 
   await expect(page.getByLabel('Verification code')).toBeVisible();
 
-  // Submit MFA code
+  // Filling all 6 digits triggers auto-submit — modal closes without needing to click Verify
   await page.getByLabel('Verification code').fill('123456');
-  await page.getByRole('button', { name: /verify/i }).click();
 
   // Modal should close after successful MFA
   await expect(page.getByText('Connect your Garmin account')).not.toBeVisible();
