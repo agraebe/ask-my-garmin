@@ -39,12 +39,14 @@ test('input is cleared after sending', async ({ page }) => {
 
 test('suggested questions disappear once a message is sent', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Ask My Garmin').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ask My Garmin', level: 2 })).toBeVisible();
 
   await page.getByPlaceholder(/ask about your activities/i).fill('Hello');
   await page.getByRole('button', { name: /send/i }).click();
 
-  await expect(page.getByText('Ask My Garmin')).not.toBeVisible({ timeout: 5000 });
+  await expect(
+    page.getByRole('heading', { name: 'Ask My Garmin', level: 2 }),
+  ).not.toBeVisible({ timeout: 5000 });
 });
 
 test('Enter key submits the message', async ({ page }) => {
@@ -61,7 +63,7 @@ test('Shift+Enter does NOT submit the message', async ({ page }) => {
   await page.keyboard.press('Shift+Enter');
 
   // Suggested questions (empty state) should still be visible
-  await expect(page.getByText('Ask My Garmin').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ask My Garmin', level: 2 })).toBeVisible();
 });
 
 test('API error shows error message in chat', async ({ page }) => {
