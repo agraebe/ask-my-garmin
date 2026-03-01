@@ -34,25 +34,47 @@ jobs:
         with:
           fetch-depth: 0 # full history so Claude can branch from the right base
 
+      # Railway MCP server shells out to the railway CLI binary, which is not
+      # pre-installed on ubuntu-latest runners.
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
       - name: Write MCP config
         run: |
+          # Vercel: mcp.vercel.com requires OAuth (no Bearer-header path).
+          #   Use the local @vercel/sdk MCP server instead — it accepts a
+          #   personal access token directly via --bearer-token.
+          # Railway: pass the account-scoped token as RAILWAY_API_TOKEN
+          #   (RAILWAY_TOKEN is project-scoped and can't list logs across projects).
           cat > /tmp/mcp-config.json << EOF
           {
             "mcpServers": {
               "vercel": {
                 "command": "npx",
-                "args": ["-y", "mcp-remote", "https://mcp.vercel.com", "--header", "Authorization:Bearer $VERCEL_TOKEN"]
+                "args": ["--package", "@vercel/sdk", "mcp", "start", "--bearer-token", "$VERCEL_TOKEN"]
               },
               "railway": {
                 "command": "npx",
                 "args": ["-y", "@railway/mcp-server"],
                 "env": {
-                  "RAILWAY_TOKEN": "$RAILWAY_TOKEN"
+                  "RAILWAY_API_TOKEN": "$RAILWAY_TOKEN"
                 }
               }
             }
           }
           EOF
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      # Smoke-test both servers before handing off to Claude.
+      # Failures here indicate stale tokens or missing packages — not a code bug.
+      - name: Verify MCP servers can start
+        run: |
+          echo "=== Testing Railway CLI authentication ==="
+          RAILWAY_API_TOKEN=$RAILWAY_TOKEN railway whoami 2>&1 || echo "⚠️ Railway auth failed — check RAILWAY_TOKEN secret"
+          echo "=== Testing Vercel SDK MCP package ==="
+          timeout 5 npx --package @vercel/sdk mcp start --bearer-token "$VERCEL_TOKEN" 2>&1 | head -20 || echo "⚠️ Vercel MCP failed to start — check VERCEL_TOKEN secret"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

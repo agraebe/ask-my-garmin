@@ -44,13 +44,21 @@ None of these should ever appear in committed code or logs.
 
 ## Required GitHub repository secrets
 
-| Secret              | Purpose                                       | Where to generate                   |
-| ------------------- | --------------------------------------------- | ----------------------------------- |
-| `ANTHROPIC_API_KEY` | All Claude workflows                          | Anthropic console                   |
-| `VERCEL_TOKEN`      | Claude MCP — Vercel deployment & runtime logs | Vercel → Account Settings → Tokens  |
-| `RAILWAY_TOKEN`     | Claude MCP — Railway service & build logs     | Railway → Account Settings → Tokens |
+| Secret              | Purpose                                       | Where to generate                   | Notes                                                                                                                                          |
+| ------------------- | --------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | All Claude workflows                          | Anthropic console                   |                                                                                                                                                |
+| `VERCEL_TOKEN`      | Claude MCP — Vercel deployment & runtime logs | Vercel → Account Settings → Tokens  | Personal access token (not OAuth). Passed to `@vercel/sdk mcp start --bearer-token`.                                                           |
+| `RAILWAY_TOKEN`     | Claude MCP — Railway service & build logs     | Railway → Account Settings → Tokens | **Account-scoped** token. Passed as `RAILWAY_API_TOKEN` env var to `@railway/mcp-server`. Project-scoped tokens can't read cross-project logs. |
 
 None of these should ever appear in committed code or logs.
+
+### MCP architecture notes
+
+- **Vercel**: `mcp.vercel.com` requires OAuth (browser flow — unusable in CI). We use the local
+  `@vercel/sdk` MCP server instead, which accepts a personal access token directly.
+- **Railway**: The `@railway/mcp-server` package shells out to the `railway` CLI binary. The
+  workflows install it via `npm install -g @railway/cli` before running Claude. The token must
+  be account-scoped (`RAILWAY_API_TOKEN`) to access logs and projects across all services.
 
 ## How to verify your changes work
 
