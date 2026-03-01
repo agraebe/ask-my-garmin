@@ -14,6 +14,7 @@ Run with:
 import asyncio
 import datetime
 import json
+import logging
 import os
 import tempfile
 import threading
@@ -22,6 +23,12 @@ import uuid
 import warnings
 from pathlib import Path
 from typing import Any
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("ask-my-garmin")
 
 import anthropic
 import garth
@@ -360,7 +367,13 @@ async def ask(body: AskRequest) -> StreamingResponse:
             None, garmin_client.get_all_data, ephemeral_client
         )
     except Exception as exc:
+        logger.error("get_all_data raised unexpectedly: %s", exc, exc_info=True)
         raise HTTPException(status_code=503, detail=f"Garmin data unavailable: {exc}")
+
+    # Log any fields that came back as errors so Railway shows the real cause
+    for field, value in garmin_data.items():
+        if isinstance(value, dict) and "error" in value:
+            logger.error("Garmin fetch error [%s]: %s", field, value["error"])
 
     # Re-serialize the client in case OAuth tokens were refreshed during data fetch
     try:
