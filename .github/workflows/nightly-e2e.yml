@@ -12,6 +12,9 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      failure_summary: ${{ steps.parse.outputs.failure_summary }}
+      fail_count: ${{ steps.parse.outputs.fail_count }}
 
     steps:
       - name: Checkout
@@ -30,14 +33,59 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run E2E tests
-        id: e2e
+        id: run_tests
         run: npm run e2e
+        continue-on-error: true
         env:
           CI: 'true'
           # Point at live deployments for full-stack service checks.
           # These are optional — service tests are skipped when unset.
           VERCEL_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
           RAILWAY_URL: ${{ vars.RAILWAY_PRODUCTION_URL }}
+
+      - name: Parse test results
+        id: parse
+        if: steps.run_tests.outcome == 'failure'
+        run: |
+          node << 'ENDJS'
+          const fs = require('fs');
+          try {
+            const data = JSON.parse(fs.readFileSync('playwright-report/results.json', 'utf8'));
+            const failures = [];
+
+            function collect(suite) {
+              for (const spec of (suite.specs || [])) {
+                if (!spec.ok) {
+                  const firstFailed = (spec.tests || [])
+                    .flatMap(t => t.results || [])
+                    .find(r => r.status === 'failed' || r.status === 'unexpected');
+                  const errMsg = (firstFailed?.error?.message || 'unknown error')
+                    .split('\n')[0]
+                    .replace(/`/g, "'")
+                    .substring(0, 120);
+                  failures.push('- **' + spec.title + '**: `' + errMsg + '`');
+                }
+              }
+              for (const s of (suite.suites || [])) collect(s);
+            }
+
+            for (const s of (data.suites || [])) collect(s);
+
+            const summary = failures.length
+              ? failures.join('\n')
+              : '_No structured failure data found — see linked artifact._';
+
+            const count = failures.length || data.stats?.unexpected || '?';
+
+            const out = process.env.GITHUB_OUTPUT;
+            fs.appendFileSync(out, 'fail_count=' + count + '\n');
+            fs.appendFileSync(out, 'failure_summary<<__E2E_SUMMARY__\n' + summary + '\n__E2E_SUMMARY__\n');
+          } catch(e) {
+            const out = process.env.GITHUB_OUTPUT;
+            fs.appendFileSync(out, 'fail_count=?\n');
+            fs.appendFileSync(out, 'failure_summary=_Could not parse test report: ' + e.message.substring(0, 100) + '_\n');
+          }
+          ENDJS
 
       - name: Upload Playwright report
         if: always()
@@ -48,14 +96,23 @@ jobs:
           retention-days: 14
 
       - name: Upload test results
-        if: failure()
+        if: steps.run_tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ github.run_id }}
           path: test-results/
           retention-days: 14
 
+      # Re-fail the job so the dependent open-fix-issue job sees failure()
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1
+
   # If the e2e job failed, open a GitHub Issue and tag @claude for auto-fix.
+  # Uses GH_PAT (a personal access token) instead of GITHUB_TOKEN so that
+  # GitHub fires the issues:opened event, which triggers the claude.yml workflow.
+  # (Issues created by GITHUB_TOKEN are suppressed from triggering other workflows
+  # to prevent infinite loops — a PAT bypasses that restriction.)
   open-fix-issue:
     name: Open auto-fix issue on failure
     needs: e2e
@@ -67,8 +124,15 @@ jobs:
     steps:
       - name: Create GitHub Issue for Claude auto-fix
         uses: actions/github-script@v7
+        env:
+          FAIL_COUNT: ${{ needs.e2e.outputs.fail_count }}
+          FAILURE_SUMMARY: ${{ needs.e2e.outputs.failure_summary }}
         with:
+          github-token: ${{ secrets.GH_PAT }}
           script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const failCount = process.env.FAIL_COUNT || '?';
+            const failureSummary = process.env.FAILURE_SUMMARY || '_No details available._';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const reportArtifactUrl = `${runUrl}#artifacts`;
 
@@ -78,16 +142,15 @@ jobs:
               `**Workflow run:** ${runUrl}`,
               `**Playwright report:** ${reportArtifactUrl}`,
               '',
-              '### What happened',
-              'The nightly Playwright end-to-end test suite failed on `main`.',
-              'The full test report and failure screenshots are attached to the workflow run above.',
+              '### Failed tests',
+              '',
+              failureSummary,
               '',
               '### What to do',
               '@claude Please:',
-              '1. Download and review the Playwright report artifact from the workflow run linked above.',
+              '1. Review the failed tests listed above and identify the root cause.',
               '2. Check Vercel runtime logs and Railway service logs via MCP for any server-side errors coinciding with the test run.',
-              '3. Identify the root cause of the failure.',
-              '4. Fix the bug in a new branch and open a PR that closes this issue.',
+              '3. Fix the bug in a new branch and open a PR that closes this issue.',
               '',
               '> This issue was opened automatically by the nightly E2E workflow.',
             ].join('\n');
@@ -95,7 +158,7 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `[Nightly E2E] Test failure on ${new Date().toISOString().slice(0, 10)}`,
+              title: `[Nightly E2E] ${failCount} test(s) failed on ${date}`,
               body,
               labels: ['bug', 'automated'],
             });
