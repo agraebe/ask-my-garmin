@@ -79,6 +79,12 @@ def _serialize_garth_client(client: garth.Client) -> str:
     """
     import dataclasses
 
+    logger.info(
+        "Serializing garth client — oauth1_token present: %s, oauth2_token present: %s",
+        bool(getattr(client, "oauth1_token", None)),
+        bool(getattr(client, "oauth2_token", None)),
+    )
+
     # Primary: use save() if available
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +92,7 @@ def _serialize_garth_client(client: garth.Client) -> str:
             file_tokens: dict[str, str] = {}
             for f in Path(tmp).iterdir():
                 file_tokens[f.name] = f.read_text()
+        logger.info("Serialized garth client — saved file keys: %s", list(file_tokens.keys()))
         return json.dumps(file_tokens)
     except AttributeError:
         pass
@@ -115,6 +122,7 @@ def _deserialize_garth_client(token_json: str) -> garth.Client:
     (garth versions that lack resume()).
     """
     tokens = json.loads(token_json)
+    logger.info("Deserializing garth client — token file keys: %s", list(tokens.keys()))
     client = garth.Client()
     with tempfile.TemporaryDirectory() as tmp:
         for name, content in tokens.items():
@@ -123,6 +131,11 @@ def _deserialize_garth_client(token_json: str) -> garth.Client:
             client.resume(tmp)
         except AttributeError:
             _resume_client_from_dir(client, Path(tmp))
+    logger.info(
+        "Deserialized garth client — oauth1_token present: %s, oauth2_token present: %s",
+        bool(getattr(client, "oauth1_token", None)),
+        bool(getattr(client, "oauth2_token", None)),
+    )
     return client
 
 
