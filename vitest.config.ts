@@ -30,9 +30,9 @@ export default defineConfig({
         'src/app/globals.css',
       ],
       thresholds: {
-        lines: 60,
-        functions: 60,
-        branches: 60,
+        lines: 80,
+        functions: 80,
+        branches: 80,
       },
     },
   },

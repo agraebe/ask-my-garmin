@@ -43,14 +43,51 @@
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
+## Spec-Driven Development (SDD)
+
+Every non-trivial feature or change **must start with a written spec**. Specs are persisted
+in the `specs/` directory and serve as the single source of truth throughout development.
+
+### Spec lifecycle
+
+1. **Draft spec** — Write `specs/features/<kebab-case-name>.md` using `specs/template.md`
+   _before_ touching any code.
+2. **Acceptance criteria first** — Define exactly what "done" looks like before designing a
+   solution.
+3. **Technical design** — Describe data shapes, component interactions, and API contracts.
+4. **Commit the spec** — The spec must be committed and visible (status: `ready`) before
+   implementation starts.
+5. **Update status** — Track progress via the `status:` field in each spec:
+   `draft` → `ready` → `in-progress` → `done`
+
+### Test-Driven Development (TDD)
+
+Once the spec is `ready`, follow the **Red → Green → Refactor** cycle strictly:
+
+1. **Red** — Write failing tests that encode every acceptance criterion from the spec.
+2. **Green** — Write the minimum implementation to make the tests pass.
+3. **Refactor** — Clean up code and types while keeping tests green.
+
+**No spec → no tests → no implementation code.** This is a hard rule, not a suggestion.
+
+### What counts as "non-trivial"
+
+- Any new component, route, or library function
+- Any change to data shapes or API contracts
+- Any change to the Claude system prompt
+- Any UI flow that has more than one state
+
+Simple one-line fixes and typo corrections do not need a spec.
+
 ## Task Management
 
-1. **Plan First**: Write plan to 'tasks/todo.md' with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review to 'tasks/todo.md'
-6. **Capture Lessons**: Update 'tasks/lessons.md' after corrections
+1. **Spec First**: Write spec to `specs/features/<name>.md`, set status to `ready`
+2. **Plan**: Write plan to 'tasks/todo.md' with checkable items tied to spec ACs
+3. **Test First (TDD)**: Write failing tests before implementation
+4. **Implement**: Make tests pass with minimum code
+5. **Verify**: Run full CI suite; all checks must pass
+6. **Mark Done**: Update spec status to `done`, mark todos complete
+7. **Capture Lessons**: Update 'tasks/lessons.md' after corrections
 
 ## Core Principles
 
@@ -153,6 +190,14 @@ src/
 
 Tests live next to source files: `src/components/Foo.test.tsx`, `src/lib/foo.test.ts`.
 
+**TDD order (mandatory for non-trivial code):**
+
+1. Write tests derived from the spec's acceptance criteria — they should fail.
+2. Implement the feature — make them pass.
+3. Refactor — keep them green.
+
+Every acceptance criterion in a spec maps to at least one test case.
+
 **What to test:**
 
 - All pure utility functions in `src/lib/` (no mocking needed — just import and assert)
@@ -179,8 +224,8 @@ import { server } from '@/test/msw/server';
 server.use(http.get('/api/garmin/status', () => HttpResponse.json({ connected: false })));
 ```
 
-Coverage thresholds (enforced in CI): **60% lines / functions / branches**.
-The bar rises as the codebase grows — keep new code tested.
+Coverage thresholds (enforced in CI): **80% lines / functions / branches**.
+New code must meet this bar — do not lower it.
 
 ## Git hooks (Husky)
 
