@@ -33,7 +33,7 @@ logger = logging.getLogger("ask-my-garmin")
 import anthropic
 import garth
 from cryptography.fernet import Fernet
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -378,6 +378,13 @@ def _memory_to_dict(m: Memory) -> dict[str, Any]:
     }
 
 
+def _get_token_from_authorization(authorization: str | None) -> str:
+    """Extract Bearer token from Authorization header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    return authorization[len("Bearer "):]
+
+
 def _get_client_from_token(session_token: str) -> garth.Client:
     try:
         token_json = _decrypt_tokens(session_token)
@@ -387,8 +394,9 @@ def _get_client_from_token(session_token: str) -> garth.Client:
 
 
 @app.get("/api/memories")
-async def get_memories(session_token: str) -> dict[str, Any]:
+async def get_memories(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     """Return all active memories for the authenticated user."""
+    session_token = _get_token_from_authorization(authorization)
     client = _get_client_from_token(session_token)
     loop = asyncio.get_event_loop()
     try:
@@ -446,8 +454,11 @@ async def update_memory_route(memory_id: str, body: MemoryUpdateRequest) -> dict
 
 
 @app.delete("/api/memories/{memory_id}")
-async def delete_memory_route(memory_id: str, session_token: str) -> dict[str, str]:
+async def delete_memory_route(
+    memory_id: str, authorization: str | None = Header(default=None)
+) -> dict[str, str]:
     """Soft-delete a memory."""
+    session_token = _get_token_from_authorization(authorization)
     client = _get_client_from_token(session_token)
     loop = asyncio.get_event_loop()
     try:

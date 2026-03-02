@@ -16,7 +16,7 @@ function extractMemorySentinel(text: string): {
   content: string;
   event: MemoryStoredEvent | null;
 } {
-  const idx = text.indexOf(MEMORY_SENTINEL_PREFIX);
+  const idx = text.lastIndexOf(MEMORY_SENTINEL_PREFIX);
   if (idx === -1) return { content: text, event: null };
 
   const base = text.slice(0, idx);

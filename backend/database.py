@@ -49,9 +49,13 @@ def is_available() -> bool:
 
 
 def get_session():
-    """Return a new SQLAlchemy session. Caller is responsible for closing it."""
+    """Return a new SQLAlchemy session, or None if the DB is not configured.
+
+    Caller must check for None before using the session and is responsible
+    for closing it when done.
+    """
     if SessionLocal is None:
-        raise RuntimeError("Database not configured (DATABASE_URL missing)")
+        return None
     return SessionLocal()
 
 

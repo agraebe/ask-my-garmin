@@ -43,9 +43,9 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/memories?session_token=${encodeURIComponent(sessionToken)}`
-      );
+      const res = await fetch('/api/memories', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { memories: Memory[] };
       const mems = data.memories ?? [];
@@ -93,10 +93,10 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
   async function confirmDelete(id: string) {
     const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
     try {
-      const res = await fetch(
-        `/api/memories/${id}?session_token=${encodeURIComponent(sessionToken)}`,
-        { method: 'DELETE' }
-      );
+      const res = await fetch(`/api/memories/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setConfirmDeleteId(null);
       fetchMemories();

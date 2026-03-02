@@ -16,6 +16,7 @@ from typing import Any
 
 import anthropic
 import garth
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import database
@@ -202,16 +203,15 @@ def find_similar_key(user_id: str, key: str) -> Memory | None:
     try:
         db: Session = database.get_session()
         try:
-            memories = (
+            return (
                 db.query(Memory)
-                .filter(Memory.user_id == user_id, Memory.deleted_at.is_(None))
-                .all()
+                .filter(
+                    Memory.user_id == user_id,
+                    func.lower(Memory.key) == key.lower().strip(),
+                    Memory.deleted_at.is_(None),
+                )
+                .first()
             )
-            key_lower = key.lower().strip()
-            for m in memories:
-                if m.key.lower().strip() == key_lower:
-                    return m
-            return None
         finally:
             db.close()
     except Exception:
