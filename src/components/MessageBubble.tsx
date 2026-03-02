@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react';
+import { parseMarkdownBlocks, renderBlock } from '@/lib/markdown';
+import ChartBlock from './ChartBlock';
 import type { Message } from '@/types';
 
 interface Props {
@@ -16,6 +19,34 @@ function GarminIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function renderCodeBlock(language: string, content: string, key: number): ReactNode {
+  if (language === 'chart') {
+    return <ChartBlock key={key} content={content} />;
+  }
+  return (
+    <pre
+      key={key}
+      className="mb-2 overflow-x-auto rounded-lg bg-garmin-bg p-3 font-mono text-sm text-garmin-text"
+    >
+      <code>{content}</code>
+    </pre>
+  );
+}
+
+function AssistantContent({ content }: { content: string }) {
+  const blocks = parseMarkdownBlocks(content);
+
+  if (blocks.length === 0) {
+    return <span className="text-garmin-text-muted">…</span>;
+  }
+
+  return (
+    <div>
+      {blocks.map((block, i) => renderBlock(block, i, { renderCode: renderCodeBlock }))}
+    </div>
   );
 }
 
@@ -45,10 +76,13 @@ export default function MessageBubble({ message, isStreaming = false }: Props) {
             <span className="h-2 w-2 animate-bounce rounded-full bg-garmin-text-muted [animation-delay:-0.15s]" />
             <span className="h-2 w-2 animate-bounce rounded-full bg-garmin-text-muted" />
           </span>
-        ) : (
+        ) : isUser ? (
           <span className="whitespace-pre-wrap">{message.content || '…'}</span>
+        ) : (
+          <AssistantContent content={message.content} />
         )}
       </div>
     </div>
   );
 }
+
