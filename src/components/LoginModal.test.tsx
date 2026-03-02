@@ -102,10 +102,12 @@ describe('LoginModal', () => {
   it('shows loading state while the sign-in request is in flight', async () => {
     let unblock!: () => void;
     server.use(
-      http.post('/api/auth/login', () =>
-        new Promise<Response>((resolve) => {
-          unblock = () => resolve(HttpResponse.json({ status: 'ok' }));
-        })
+      http.post(
+        '/api/auth/login',
+        () =>
+          new Promise<Response>((resolve) => {
+            unblock = () => resolve(HttpResponse.json({ status: 'ok' }));
+          })
       )
     );
 
@@ -164,9 +166,7 @@ describe('LoginModal', () => {
       http.post('/api/auth/login', () =>
         HttpResponse.json({ status: 'mfa_required', session_id: 'sess-123' })
       ),
-      http.post('/api/auth/mfa', () =>
-        HttpResponse.json({ detail: 'Bad code' }, { status: 401 })
-      )
+      http.post('/api/auth/mfa', () => HttpResponse.json({ detail: 'Bad code' }, { status: 401 }))
     );
 
     const user = userEvent.setup();

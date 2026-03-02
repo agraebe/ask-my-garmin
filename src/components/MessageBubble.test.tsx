@@ -73,9 +73,7 @@ describe('MessageBubble', () => {
   });
 
   it('does not render markdown in user messages (plain text)', () => {
-    const { container } = render(
-      <MessageBubble message={{ role: 'user', content: '**bold**' }} />
-    );
+    const { container } = render(<MessageBubble message={{ role: 'user', content: '**bold**' }} />);
     // User messages are plain text — no <strong> element
     expect(container.querySelector('strong')).not.toBeInTheDocument();
     expect(screen.getByText('**bold**')).toBeInTheDocument();
@@ -117,9 +115,7 @@ describe('MessageBubble', () => {
 
   it('renders code blocks for assistant messages', () => {
     const { container } = render(
-      <MessageBubble
-        message={{ role: 'assistant', content: '```python\nprint("hello")\n```' }}
-      />
+      <MessageBubble message={{ role: 'assistant', content: '```python\nprint("hello")\n```' }} />
     );
     expect(container.querySelector('pre')).toBeInTheDocument();
     expect(screen.getByText('print("hello")')).toBeInTheDocument();
@@ -143,9 +139,7 @@ describe('MessageBubble', () => {
   });
 
   it('renders a horizontal rule for assistant messages', () => {
-    const { container } = render(
-      <MessageBubble message={{ role: 'assistant', content: '---' }} />
-    );
+    const { container } = render(<MessageBubble message={{ role: 'assistant', content: '---' }} />);
     expect(container.querySelector('hr')).toBeInTheDocument();
   });
 
@@ -209,10 +203,11 @@ describe('MessageBubble', () => {
   });
 
   it('preserves whitespace in user messages with newlines', () => {
-    render(
+    // User messages use whitespace-pre-wrap so newlines are preserved in the DOM
+    const { container } = render(
       <MessageBubble message={{ role: 'user', content: 'Line one\nLine two' }} />
     );
-    // User messages use whitespace-pre-wrap so newlines are preserved in the DOM
-    expect(screen.getByText('Line one\nLine two')).toBeInTheDocument();
+    const span = container.querySelector('.whitespace-pre-wrap');
+    expect(span?.textContent).toBe('Line one\nLine two');
   });
 });

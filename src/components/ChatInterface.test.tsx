@@ -213,13 +213,15 @@ describe('ChatInterface', () => {
 
   it('updates the session token from the X-Session-Token response header', async () => {
     server.use(
-      http.post('/api/ask', () =>
-        new HttpResponse('Token updated.', {
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'X-Session-Token': 'new-token-xyz',
-          },
-        })
+      http.post(
+        '/api/ask',
+        () =>
+          new HttpResponse('Token updated.', {
+            headers: {
+              'Content-Type': 'text/plain; charset=utf-8',
+              'X-Session-Token': 'new-token-xyz',
+            },
+          })
       )
     );
     const user = userEvent.setup();

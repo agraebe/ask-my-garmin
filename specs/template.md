@@ -1,8 +1,8 @@
 ---
 title: <Feature Name>
-status: draft   # draft | ready | in-progress | done
-issue: "#<issue-number>"
-pr: ""
+status: draft # draft | ready | in-progress | done
+issue: '#<issue-number>'
+pr: ''
 created: YYYY-MM-DD
 ---
 
@@ -61,10 +61,10 @@ created: YYYY-MM-DD
 
 <!-- Derived from acceptance criteria. List all unit + integration test cases. -->
 
-| ID   | Description                        | Type        | AC refs |
-| ---- | ---------------------------------- | ----------- | ------- |
-| T-1  |                                    | unit        | AC-1    |
-| T-2  |                                    | integration | AC-2    |
+| ID  | Description | Type        | AC refs |
+| --- | ----------- | ----------- | ------- |
+| T-1 |             | unit        | AC-1    |
+| T-2 |             | integration | AC-2    |
 
 ## Open questions
 
