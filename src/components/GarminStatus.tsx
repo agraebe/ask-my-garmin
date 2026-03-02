@@ -52,7 +52,7 @@ export default function GarminStatus({ connected, email, onLoginClick, onLogout 
         onClick={onLoginClick}
         className="rounded-md bg-garmin-blue px-3 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90"
       >
-        Sign in
+        Connect
       </button>
     </div>
   );

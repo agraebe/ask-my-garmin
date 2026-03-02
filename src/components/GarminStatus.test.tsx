@@ -24,17 +24,17 @@ describe('GarminStatus', () => {
     expect(screen.getByText('(runner@example.com)')).toBeInTheDocument();
   });
 
-  it('shows "Not connected" and a Sign in button when disconnected', () => {
+  it('shows "Not connected" and a Connect button when disconnected', () => {
     render(<GarminStatus connected={false} onLoginClick={noop} onLogout={noop} />);
     expect(screen.getByText('Not connected')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect/i })).toBeInTheDocument();
   });
 
-  it('calls onLoginClick when Sign in is clicked', async () => {
+  it('calls onLoginClick when Connect is clicked', async () => {
     const user = userEvent.setup();
     const onLoginClick = vi.fn();
     render(<GarminStatus connected={false} onLoginClick={onLoginClick} onLogout={noop} />);
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /connect/i }));
     expect(onLoginClick).toHaveBeenCalledOnce();
   });
 
