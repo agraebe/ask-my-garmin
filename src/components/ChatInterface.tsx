@@ -158,7 +158,7 @@ export default function ChatInterface({
             placeholder="Ask about your activities, sleep, heart rate…"
             rows={1}
             disabled={isStreaming}
-            className={`max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-garmin-border bg-garmin-bg px-4 py-3 text-sm text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${accentFocus}`}
+            className={`max-h-32 flex-1 resize-none overflow-y-auto rounded-xl border border-garmin-border bg-garmin-bg px-4 py-3 text-base text-garmin-text placeholder:text-garmin-text-muted focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${accentFocus}`}
             style={{ minHeight: '44px' }}
             onInput={(e) => {
               const el = e.currentTarget;
