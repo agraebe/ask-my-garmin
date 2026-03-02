@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ChatInterface from '@/components/ChatInterface';
 import GarminStatus from '@/components/GarminStatus';
 import LoginModal from '@/components/LoginModal';
+import MemoryPanel from '@/components/MemoryPanel';
 
 type AuthState = 'loading' | 'connected' | 'disconnected';
 
@@ -24,10 +25,26 @@ function GarminIcon() {
   );
 }
 
+function MemoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [email, setEmail] = useState('');
   const [showLogin, setShowLogin] = useState(false);
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [memoryCount, setMemoryCount] = useState(0);
   const [funMode, setFunMode] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
@@ -38,7 +55,7 @@ export default function Home() {
         ? `/api/auth/status?session_token=${encodeURIComponent(token)}`
         : '/api/auth/status';
       const res = await fetch(url);
-      const data = await res.json();
+      const data = (await res.json()) as { connected: boolean; email?: string };
       if (data.connected) {
         setEmail(data.email ?? '');
         setAuthState('connected');
@@ -63,6 +80,7 @@ export default function Home() {
     sessionStorage.removeItem('garmin_session');
     setAuthState('disconnected');
     setEmail('');
+    setMemoryCount(0);
   }
 
   function handleLoginSuccess(token: string) {
@@ -110,6 +128,23 @@ export default function Home() {
               {funMode ? '🔥 RCJ Mode' : '🏃 Fun Mode'}
             </button>
 
+            {isConnected && (
+              <button
+                onClick={() => setShowMemoryPanel(true)}
+                aria-label="Open memory panel"
+                title="Coach's Memory"
+                className="relative flex items-center gap-1.5 rounded-full border border-garmin-border bg-garmin-surface-2 px-3 py-1 text-sm font-medium text-garmin-text-muted transition-colors hover:border-garmin-blue hover:text-garmin-text"
+              >
+                <MemoryIcon />
+                <span className="hidden sm:inline">Memory</span>
+                {memoryCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-garmin-blue px-1 text-xs font-bold text-white">
+                    {memoryCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <GarminStatus
               connected={isLoading ? null : isConnected}
               email={email}
@@ -123,6 +158,14 @@ export default function Home() {
       {/* Login modal — only shown when explicitly triggered (e.g. intercepted send) */}
       {showLogin && <LoginModal onSuccess={handleLoginSuccess} />}
 
+      {/* Memory panel */}
+      {showMemoryPanel && (
+        <MemoryPanel
+          onClose={() => setShowMemoryPanel(false)}
+          onMemoryCountChange={setMemoryCount}
+        />
+      )}
+
       <div className="mx-auto w-full max-w-4xl flex-1 overflow-hidden">
         <ChatInterface
           funMode={funMode}
@@ -133,6 +176,7 @@ export default function Home() {
           }}
           pendingQuestion={pendingQuestion}
           onPendingQuestionHandled={() => setPendingQuestion(null)}
+          onMemoryStored={() => setMemoryCount((c) => c + 1)}
         />
       </div>
     </main>
