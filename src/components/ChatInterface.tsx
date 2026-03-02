@@ -77,6 +77,7 @@ export default function ChatInterface({
       if (!question.trim() || isStreaming) return;
 
       if (!isConnected) {
+        setInput('');
         onLoginRequired(question);
         return;
       }

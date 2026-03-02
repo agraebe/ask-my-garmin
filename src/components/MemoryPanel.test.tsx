@@ -80,7 +80,11 @@ describe('MemoryPanel', () => {
     render(<MemoryPanel onClose={vi.fn()} />);
     await waitFor(() => screen.getByText('Next Marathon'));
     await user.click(screen.getByRole('button', { name: 'Delete Next Marathon' }));
-    expect(screen.getByText(/Delete.*Next Marathon/)).toBeInTheDocument();
+    // Text is split across elements (<p>Delete <strong>"key"</strong>? ...</p>)
+    // so we check the li's text content instead of using getByText with a regex
+    const confirmLi = screen.getByRole('button', { name: 'Cancel' }).closest('li');
+    expect(confirmLi).toHaveTextContent('Delete');
+    expect(confirmLi).toHaveTextContent('Next Marathon');
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
   });
 

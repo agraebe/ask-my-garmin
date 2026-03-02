@@ -209,10 +209,12 @@ describe('MessageBubble', () => {
   });
 
   it('preserves whitespace in user messages with newlines', () => {
-    render(
+    const { container } = render(
       <MessageBubble message={{ role: 'user', content: 'Line one\nLine two' }} />
     );
-    // User messages use whitespace-pre-wrap so newlines are preserved in the DOM
-    expect(screen.getByText('Line one\nLine two')).toBeInTheDocument();
+    // getByText normalizes whitespace (collapses \n), so check textContent directly
+    const span = container.querySelector('.whitespace-pre-wrap');
+    expect(span).toBeInTheDocument();
+    expect(span?.textContent).toBe('Line one\nLine two');
   });
 });
