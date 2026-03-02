@@ -62,12 +62,7 @@ describe('GarminStatus', () => {
 
   it('sets a descriptive title attribute when connected with an email', () => {
     const { container } = render(
-      <GarminStatus
-        connected={true}
-        email="athlete@test.com"
-        onLoginClick={noop}
-        onLogout={noop}
-      />
+      <GarminStatus connected={true} email="athlete@test.com" onLoginClick={noop} onLogout={noop} />
     );
     expect(container.querySelector('[title="Connected as athlete@test.com"]')).toBeInTheDocument();
   });
@@ -78,9 +73,7 @@ describe('GarminStatus', () => {
   });
 
   it('does not show a Connect button when connected', () => {
-    render(
-      <GarminStatus connected={true} email="x@y.com" onLoginClick={noop} onLogout={noop} />
-    );
+    render(<GarminStatus connected={true} email="x@y.com" onLoginClick={noop} onLogout={noop} />);
     expect(screen.queryByRole('button', { name: /connect/i })).not.toBeInTheDocument();
   });
 });

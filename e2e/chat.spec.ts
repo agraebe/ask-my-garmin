@@ -44,9 +44,9 @@ test('suggested questions disappear once a message is sent', async ({ page }) =>
   await page.getByPlaceholder(/ask about your activities/i).fill('Hello');
   await page.getByRole('button', { name: /send/i }).click();
 
-  await expect(
-    page.getByRole('heading', { name: 'Ask My Garmin', level: 2 }),
-  ).not.toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('heading', { name: 'Ask My Garmin', level: 2 })).not.toBeVisible({
+    timeout: 5000,
+  });
 });
 
 test('Enter key submits the message', async ({ page }) => {

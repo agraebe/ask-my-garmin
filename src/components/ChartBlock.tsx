@@ -65,9 +65,7 @@ export default function ChartBlock({ content }: ChartBlockProps) {
   if (data.type === 'bar') {
     return (
       <div className="mb-2 rounded-lg border border-garmin-border bg-garmin-surface p-4">
-        {data.title && (
-          <p className="mb-3 text-sm font-semibold text-garmin-text">{data.title}</p>
-        )}
+        {data.title && <p className="mb-3 text-sm font-semibold text-garmin-text">{data.title}</p>}
         <div className="space-y-3">
           {rows.map((row, ri) => (
             <div key={ri} className="flex items-start gap-3 text-xs">
@@ -100,11 +98,11 @@ export default function ChartBlock({ content }: ChartBlockProps) {
         {data.datasets.length > 1 && (
           <div className="mt-3 flex flex-wrap gap-3">
             {data.datasets.map((ds, di) => (
-              <div key={ds.label} className="flex items-center gap-1 text-xs text-garmin-text-muted">
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: getColor(di) }}
-                />
+              <div
+                key={ds.label}
+                className="flex items-center gap-1 text-xs text-garmin-text-muted"
+              >
+                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: getColor(di) }} />
                 {ds.label}
               </div>
             ))}
@@ -117,16 +115,17 @@ export default function ChartBlock({ content }: ChartBlockProps) {
   // Line and doughnut — render as a structured table (readable without a canvas library)
   return (
     <div className="mb-2 rounded-lg border border-garmin-border bg-garmin-surface p-4">
-      {data.title && (
-        <p className="mb-3 text-sm font-semibold text-garmin-text">{data.title}</p>
-      )}
+      {data.title && <p className="mb-3 text-sm font-semibold text-garmin-text">{data.title}</p>}
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-garmin-border">
               <th className="pb-2 pr-4 text-left font-medium text-garmin-text-muted">Label</th>
               {data.datasets.map((ds) => (
-                <th key={ds.label} className="pb-2 pr-4 text-left font-medium text-garmin-text-muted">
+                <th
+                  key={ds.label}
+                  className="pb-2 pr-4 text-left font-medium text-garmin-text-muted"
+                >
                   {ds.label}
                 </th>
               ))}

@@ -44,9 +44,7 @@ function AssistantContent({ content }: { content: string }) {
   }
 
   return (
-    <div>
-      {blocks.map((block, i) => renderBlock(block, i, { renderCode: renderCodeBlock }))}
-    </div>
+    <div>{blocks.map((block, i) => renderBlock(block, i, { renderCode: renderCodeBlock }))}</div>
   );
 }
 
@@ -85,4 +83,3 @@ export default function MessageBubble({ message, isStreaming = false }: Props) {
     </div>
   );
 }
-

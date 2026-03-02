@@ -72,7 +72,7 @@ describe('SuggestedQuestions in fun mode', () => {
     await user.click(screen.getByText(/forget to start my Garmin/i));
     expect(onSelect).toHaveBeenCalledOnce();
     expect(onSelect).toHaveBeenCalledWith(
-      "If I do a run and forget to start my Garmin, did it still count?"
+      'If I do a run and forget to start my Garmin, did it still count?'
     );
   });
 });

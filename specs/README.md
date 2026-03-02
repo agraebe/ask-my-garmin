@@ -14,12 +14,12 @@ specs/
 
 ## Spec lifecycle
 
-| Status        | Meaning                                                         |
-| ------------- | --------------------------------------------------------------- |
-| `draft`       | Being written — not ready for implementation                    |
-| `ready`       | Acceptance criteria are finalized — tests can be written        |
-| `in-progress` | TDD cycle underway — tests written, implementation in progress  |
-| `done`        | All acceptance criteria pass, PR merged                         |
+| Status        | Meaning                                                        |
+| ------------- | -------------------------------------------------------------- |
+| `draft`       | Being written — not ready for implementation                   |
+| `ready`       | Acceptance criteria are finalized — tests can be written       |
+| `in-progress` | TDD cycle underway — tests written, implementation in progress |
+| `done`        | All acceptance criteria pass, PR merged                        |
 
 ## Workflow
 
@@ -40,6 +40,7 @@ specs/
 ## Example acceptance criterion → test mapping
 
 Spec:
+
 ```
 ### Acceptance criteria
 
@@ -48,6 +49,7 @@ Spec:
 ```
 
 Test:
+
 ```tsx
 describe('GarminStatus', () => {
   it('AC-1: shows Connected when status endpoint returns connected: true', async () => { ... });

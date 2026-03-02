@@ -22,10 +22,10 @@ const RCJ_SUGGESTIONS = [
   "My VDOT says I should run 3:42 but in my heart I know I'm a 3:28 person. Who's right?",
   'The dew point was 68°F. What was my "real" pace adjusted for optimal conditions?',
   'My HRV this morning was 43. My coach says run. My Garmin says rest. Who wins?',
-  "If I do a run and forget to start my Garmin, did it still count?",
+  'If I do a run and forget to start my Garmin, did it still count?',
   "I have taper madness and think I've developed 4 new injuries this week. Are any real?",
   'My easy run pace was 8:32. Is that Zone 2 or am I secretly a slow elite?',
-  'My physio said 6 weeks off. What\'s a good 6-week training block I can do instead?',
+  "My physio said 6 weeks off. What's a good 6-week training block I can do instead?",
 ];
 
 interface Props {

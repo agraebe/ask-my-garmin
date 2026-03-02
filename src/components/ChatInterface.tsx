@@ -79,6 +79,7 @@ export default function ChatInterface({
       if (!isConnected) {
         setInput('');
         onLoginRequired(question);
+        setInput('');
         return;
       }
 
