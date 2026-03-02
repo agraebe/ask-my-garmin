@@ -60,4 +60,68 @@ describe('MessageBubble', () => {
     );
     expect(container.querySelector('.bg-garmin-surface')).toBeInTheDocument();
   });
+
+  // ── Markdown rendering ──────────────────────────────────────────────────────
+
+  it('renders bold markdown as <strong> in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '**Training Readiness**: 72' }} />
+    );
+    const strong = container.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('Training Readiness');
+  });
+
+  it('does not render markdown in user messages (plain text)', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'user', content: '**bold**' }} />
+    );
+    // User messages are plain text — no <strong> element
+    expect(container.querySelector('strong')).not.toBeInTheDocument();
+    expect(screen.getByText('**bold**')).toBeInTheDocument();
+  });
+
+  it('renders a GFM table for assistant messages', () => {
+    const tableMarkdown = `| Date | Distance |
+|------|----------|
+| Feb 28 | 10.2 mi |
+| Mar 1 | 6.5 mi |`;
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: tableMarkdown }} />
+    );
+    expect(container.querySelector('table')).toBeInTheDocument();
+    expect(container.querySelector('thead')).toBeInTheDocument();
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    expect(screen.getByText('10.2 mi')).toBeInTheDocument();
+  });
+
+  it('renders headings for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '## Training Summary' }} />
+    );
+    const h2 = container.querySelector('h2');
+    expect(h2).toBeInTheDocument();
+    expect(h2).toHaveTextContent('Training Summary');
+  });
+
+  it('renders unordered lists for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '- Run easy\n- Sleep 8 hours\n- Hydrate' }}
+      />
+    );
+    const list = container.querySelector('ul');
+    expect(list).toBeInTheDocument();
+    expect(container.querySelectorAll('li')).toHaveLength(3);
+  });
+
+  it('renders code blocks for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '```python\nprint("hello")\n```' }}
+      />
+    );
+    expect(container.querySelector('pre')).toBeInTheDocument();
+    expect(screen.getByText('print("hello")')).toBeInTheDocument();
+  });
 });
