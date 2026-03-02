@@ -63,13 +63,44 @@ None of these should ever appear in committed code or logs.
 ## How to verify your changes work
 
 ```bash
-npm run lint          # ESLint — must pass
-npx tsc --noEmit      # TypeScript — must pass
-npm run build         # Next.js build — must pass before any PR is merged
+npm run format:check  # Prettier — must pass
+npm run lint          # ESLint (zero warnings) — must pass
+npm run typecheck     # tsc --noEmit — must pass
+npm run test:run      # Vitest single run — must pass (≥80% coverage)
+npm run build         # Next.js production build — must pass
 ```
 
-There is no test suite yet. Type correctness and a successful build are the
-minimum bars for any change.
+All five checks must pass before a PR is merged. CI enforces them in this order.
+
+## Spec-Driven Development (SDD) + TDD workflow
+
+### Every non-trivial change follows this order
+
+1. **Write a spec** in `specs/features/<kebab-case-name>.md` using `specs/template.md`.
+   - Fill in: problem statement, acceptance criteria, technical design, test scenarios.
+   - Set `status: ready` when the spec is complete.
+   - Commit the spec _before_ writing any implementation code.
+
+2. **Write failing tests** (TDD Red phase).
+   - Each acceptance criterion → at least one test case.
+   - Tests must fail because the code does not exist yet.
+
+3. **Implement** (TDD Green phase).
+   - Write the minimum code to make all tests pass.
+   - No gold-plating; stay within the spec's scope.
+
+4. **Refactor** (TDD Refactor phase).
+   - Clean up while keeping tests green.
+
+5. **Update the spec** status to `done` in the same PR.
+
+### What counts as non-trivial
+
+- Any new component, route, or lib function
+- Any change to data shapes, API contracts, or the Claude system prompt
+- Any UI flow with multiple states
+
+Simple one-line fixes do not need a spec.
 
 ## Coding conventions agents must follow
 
@@ -115,6 +146,7 @@ There is no local dev loop for the owner — all work is done through GitHub Iss
        │
        └──────────────────► claude-requirements.yml fires
                              Claude posts requirements breakdown
+                             + drafts a spec in specs/features/
                              as an issue comment
        │
        ▼
@@ -124,7 +156,8 @@ There is no local dev loop for the owner — all work is done through GitHub Iss
  "@claude implement"
        │
        └──────────────────► claude-implement.yml fires
-                             Claude writes code, runs tsc + lint + build,
+                             Claude writes failing tests first (TDD),
+                             then implements, runs full CI suite,
                              opens a PR (closes the issue)
        │
        └──────────────────► claude-review.yml fires (auto on PR open)

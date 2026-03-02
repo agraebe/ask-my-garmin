@@ -60,4 +60,159 @@ describe('MessageBubble', () => {
     );
     expect(container.querySelector('.bg-garmin-surface')).toBeInTheDocument();
   });
+
+  // ── Markdown rendering ──────────────────────────────────────────────────────
+
+  it('renders bold markdown as <strong> in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '**Training Readiness**: 72' }} />
+    );
+    const strong = container.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('Training Readiness');
+  });
+
+  it('does not render markdown in user messages (plain text)', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'user', content: '**bold**' }} />
+    );
+    // User messages are plain text — no <strong> element
+    expect(container.querySelector('strong')).not.toBeInTheDocument();
+    expect(screen.getByText('**bold**')).toBeInTheDocument();
+  });
+
+  it('renders a GFM table for assistant messages', () => {
+    const tableMarkdown = `| Date | Distance |
+|------|----------|
+| Feb 28 | 10.2 mi |
+| Mar 1 | 6.5 mi |`;
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: tableMarkdown }} />
+    );
+    expect(container.querySelector('table')).toBeInTheDocument();
+    expect(container.querySelector('thead')).toBeInTheDocument();
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    expect(screen.getByText('10.2 mi')).toBeInTheDocument();
+  });
+
+  it('renders headings for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '## Training Summary' }} />
+    );
+    const h2 = container.querySelector('h2');
+    expect(h2).toBeInTheDocument();
+    expect(h2).toHaveTextContent('Training Summary');
+  });
+
+  it('renders unordered lists for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '- Run easy\n- Sleep 8 hours\n- Hydrate' }}
+      />
+    );
+    const list = container.querySelector('ul');
+    expect(list).toBeInTheDocument();
+    expect(container.querySelectorAll('li')).toHaveLength(3);
+  });
+
+  it('renders code blocks for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '```python\nprint("hello")\n```' }}
+      />
+    );
+    expect(container.querySelector('pre')).toBeInTheDocument();
+    expect(screen.getByText('print("hello")')).toBeInTheDocument();
+  });
+
+  it('shows "…" placeholder for empty assistant content when not streaming', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '' }} isStreaming={false} />
+    );
+    // AssistantContent returns a <span>…</span> when blocks array is empty
+    expect(container.querySelector('span')).toBeInTheDocument();
+    expect(container.textContent).toContain('…');
+  });
+
+  it('renders a blockquote for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '> Quoted text here' }} />
+    );
+    expect(container.querySelector('blockquote')).toBeInTheDocument();
+    expect(screen.getByText('Quoted text here')).toBeInTheDocument();
+  });
+
+  it('renders a horizontal rule for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '---' }} />
+    );
+    expect(container.querySelector('hr')).toBeInTheDocument();
+  });
+
+  it('renders an ordered list for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '1. Step one\n2. Step two\n3. Step three' }}
+      />
+    );
+    expect(container.querySelector('ol')).toBeInTheDocument();
+    expect(container.querySelectorAll('li')).toHaveLength(3);
+    expect(screen.getByText('Step one')).toBeInTheDocument();
+  });
+
+  it('renders an H1 heading for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '# Top Level Heading' }} />
+    );
+    const h1 = container.querySelector('h1');
+    expect(h1).toBeInTheDocument();
+    expect(h1).toHaveTextContent('Top Level Heading');
+  });
+
+  it('renders an H3 heading for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '### Sub Heading' }} />
+    );
+    const h3 = container.querySelector('h3');
+    expect(h3).toBeInTheDocument();
+    expect(h3).toHaveTextContent('Sub Heading');
+  });
+
+  it('renders inline code in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: 'Run `npm install` first' }} />
+    );
+    expect(container.querySelector('code')).toBeInTheDocument();
+    expect(screen.getByText('npm install')).toBeInTheDocument();
+  });
+
+  it('renders italic text in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: 'This is *emphasized* text' }} />
+    );
+    expect(container.querySelector('em')).toHaveTextContent('emphasized');
+  });
+
+  it('renders links in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{
+          role: 'assistant',
+          content: 'See [Garmin Connect](https://connect.garmin.com)',
+        }}
+      />
+    );
+    const link = container.querySelector('a');
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveTextContent('Garmin Connect');
+    expect(link).toHaveAttribute('href', 'https://connect.garmin.com');
+  });
+
+  it('preserves whitespace in user messages with newlines', () => {
+    render(
+      <MessageBubble message={{ role: 'user', content: 'Line one\nLine two' }} />
+    );
+    // User messages use whitespace-pre-wrap so newlines are preserved in the DOM
+    expect(screen.getByText('Line one\nLine two')).toBeInTheDocument();
+  });
 });
