@@ -6,12 +6,14 @@ Handles:
   - Per-user encrypted session tokens (no shared global state on disk)
   - Garmin data fetching
   - Claude AI streaming responses
+  - Persistent user memory (PostgreSQL via DATABASE_URL)
 
 Run with:
   uvicorn main:app --reload --port 8000
 """
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import os
@@ -19,6 +21,7 @@ import threading
 import time
 import uuid
 import warnings
+from contextlib import asynccontextmanager
 from typing import Any
 
 logging.basicConfig(
@@ -30,11 +33,24 @@ logger = logging.getLogger("ask-my-garmin")
 import anthropic
 import garth
 from cryptography.fernet import Fernet
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import database
 import garmin_client
+import memory_service
+from models import Memory
+
+
+# ── App lifecycle ─────────────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    database.init_db()
+    yield
+
 
 # ── Session encryption ────────────────────────────────────────────────────────
 # SESSION_SECRET must be a URL-safe base64-encoded 32-byte key.
@@ -168,7 +184,7 @@ _login_sessions: dict[str, dict[str, Any]] = {}
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Ask My Garmin API")
+app = FastAPI(title="Ask My Garmin API", lifespan=lifespan)
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -189,6 +205,20 @@ class AskRequest(BaseModel):
     history: list[dict[str, str]] = []
     session_token: str
     fun_mode: bool = False
+
+
+class MemoryCreateRequest(BaseModel):
+    session_token: str
+    key: str
+    content: str
+    category: str = "personal"
+
+
+class MemoryUpdateRequest(BaseModel):
+    session_token: str
+    key: str | None = None
+    content: str | None = None
+    category: str | None = None
 
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
@@ -333,6 +363,119 @@ async def logout() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# ── Memory routes ─────────────────────────────────────────────────────────────
+
+
+def _memory_to_dict(m: Memory) -> dict[str, Any]:
+    return {
+        "id": m.id,
+        "key": m.key,
+        "content": m.content,
+        "category": m.category.value,
+        "created_at": m.created_at.isoformat(),
+        "updated_at": m.updated_at.isoformat(),
+        "source_context": m.source_context,
+    }
+
+
+def _get_token_from_authorization(authorization: str | None) -> str:
+    """Extract Bearer token from Authorization header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    return authorization[len("Bearer "):]
+
+
+def _get_client_from_token(session_token: str) -> garth.Client:
+    try:
+        token_json = _decrypt_tokens(session_token)
+        return _deserialize_garth_client(token_json)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+
+@app.get("/api/memories")
+async def get_memories(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Return all active memories for the authenticated user."""
+    session_token = _get_token_from_authorization(authorization)
+    client = _get_client_from_token(session_token)
+    loop = asyncio.get_event_loop()
+    try:
+        user_id = await loop.run_in_executor(
+            None, memory_service.get_user_id_hash, client
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not identify user: {exc}")
+    memories = await loop.run_in_executor(None, memory_service.list_memories, user_id)
+    return {"memories": [_memory_to_dict(m) for m in memories]}
+
+
+@app.post("/api/memories")
+async def create_memory_route(body: MemoryCreateRequest) -> dict[str, Any]:
+    """Create a new memory for the authenticated user."""
+    client = _get_client_from_token(body.session_token)
+    loop = asyncio.get_event_loop()
+    try:
+        user_id = await loop.run_in_executor(
+            None, memory_service.get_user_id_hash, client
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not identify user: {exc}")
+    memory = await loop.run_in_executor(
+        None,
+        lambda: memory_service.create_memory(
+            user_id, body.key, body.content, body.category
+        ),
+    )
+    if not memory:
+        raise HTTPException(status_code=500, detail="Failed to create memory")
+    return _memory_to_dict(memory)
+
+
+@app.patch("/api/memories/{memory_id}")
+async def update_memory_route(memory_id: str, body: MemoryUpdateRequest) -> dict[str, Any]:
+    """Update an existing memory."""
+    client = _get_client_from_token(body.session_token)
+    loop = asyncio.get_event_loop()
+    try:
+        user_id = await loop.run_in_executor(
+            None, memory_service.get_user_id_hash, client
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not identify user: {exc}")
+    updated = await loop.run_in_executor(
+        None,
+        lambda: memory_service.update_memory(
+            memory_id, user_id, body.key, body.content, body.category
+        ),
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return _memory_to_dict(updated)
+
+
+@app.delete("/api/memories/{memory_id}")
+async def delete_memory_route(
+    memory_id: str, authorization: str | None = Header(default=None)
+) -> dict[str, str]:
+    """Soft-delete a memory."""
+    session_token = _get_token_from_authorization(authorization)
+    client = _get_client_from_token(session_token)
+    loop = asyncio.get_event_loop()
+    try:
+        user_id = await loop.run_in_executor(
+            None, memory_service.get_user_id_hash, client
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not identify user: {exc}")
+    deleted = await loop.run_in_executor(
+        None,
+        lambda: memory_service.delete_memory(memory_id, user_id),
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"status": "ok"}
+
+
 # ── Ask route ─────────────────────────────────────────────────────────────────
 
 
@@ -362,6 +505,18 @@ async def ask(body: AskRequest) -> StreamingResponse:
         if isinstance(value, dict) and "error" in value:
             logger.error("Garmin fetch error [%s]: %s", field, value["error"])
 
+    # Fetch user ID hash and active memories (best-effort — failures don't abort request)
+    user_id: str | None = None
+    memories_text = ""
+    try:
+        user_id = await loop.run_in_executor(
+            None, memory_service.get_user_id_hash, ephemeral_client
+        )
+        memories = await loop.run_in_executor(None, memory_service.list_memories, user_id)
+        memories_text = memory_service.format_memories_for_prompt(memories)
+    except Exception as exc:
+        logger.warning("Memory load failed (non-fatal): %s", exc)
+
     # Re-serialize the client in case OAuth tokens were refreshed during data fetch
     try:
         updated_session_token = _encrypt_tokens(_serialize_garth_client(ephemeral_client))
@@ -376,8 +531,22 @@ async def ask(body: AskRequest) -> StreamingResponse:
     claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     system_prompt = (
-        _build_rcj_system_prompt(garmin_data) if body.fun_mode else _build_system_prompt(garmin_data)
+        _build_rcj_system_prompt(garmin_data, memories_text)
+        if body.fun_mode
+        else _build_system_prompt(garmin_data, memories_text)
     )
+
+    # Start memory detection concurrently in a background thread
+    _detection_future: concurrent.futures.Future[dict[str, Any] | None] | None = None
+    _detection_executor: concurrent.futures.ThreadPoolExecutor | None = None
+
+    if user_id and database.is_available():
+        _detection_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        _detection_future = _detection_executor.submit(
+            memory_service.detect_and_store_memory,
+            body.question,
+            user_id,
+        )
 
     def stream_tokens():
         with claude.messages.stream(
@@ -388,6 +557,28 @@ async def ask(body: AskRequest) -> StreamingResponse:
         ) as stream:
             for text in stream.text_stream:
                 yield text
+
+        # After the main stream completes, check for a detected memory
+        if _detection_future is not None:
+            try:
+                memory_result = _detection_future.result(timeout=10)
+                if memory_result:
+                    action = "Updated memory" if memory_result.get("updated") else "Remembered"
+                    sentinel_data = json.dumps(
+                        {
+                            "id": memory_result["id"],
+                            "key": memory_result["key"],
+                            "content": memory_result["content"],
+                            "updated": memory_result.get("updated", False),
+                            "action": action,
+                        }
+                    )
+                    yield f"\n[MEMORY_STORED:{sentinel_data}]"
+            except Exception:
+                pass
+            finally:
+                if _detection_executor:
+                    _detection_executor.shutdown(wait=False)
 
     return StreamingResponse(
         stream_tokens(),
@@ -419,12 +610,12 @@ def _wait_first(
     return "done"  # timed out — fall through
 
 
-def _build_rcj_system_prompt(garmin_data: dict[str, Any]) -> str:
+def _build_rcj_system_prompt(garmin_data: dict[str, Any], memories_text: str = "") -> str:
     import json as _json
     from datetime import date
 
     today = date.today().strftime("%A, %B %-d, %Y")
-    return f"""\
+    prompt = f"""\
 You are RunBot 9000, an AI assistant who is also a stereotypical r/runningcirclejerk poster. \
 You have access to the user's Garmin data and you answer questions — but entirely in character.
 
@@ -454,13 +645,18 @@ Today's date: {today}.
 ## User's Garmin Data
 {_json.dumps(garmin_data, indent=2)}"""
 
+    if memories_text:
+        prompt += f"\n\n{memories_text}"
 
-def _build_system_prompt(garmin_data: dict[str, Any]) -> str:
+    return prompt
+
+
+def _build_system_prompt(garmin_data: dict[str, Any], memories_text: str = "") -> str:
     import json as _json
     from datetime import date
 
     today = date.today().strftime("%A, %B %-d, %Y")
-    return f"""\
+    prompt = f"""\
 You are an elite running coach and sports scientist with 20+ years coaching Olympic, professional, and serious amateur runners. You have direct access to this athlete's Garmin Connect data — activities, HRV, Training Readiness, Body Battery, sleep, heart rate, training load, running dynamics, VO2max estimate, and all wellness metrics.
 
 Your job is to give the kind of advice an Olympic coach gives in a 20-minute session: specific, data-driven, occasionally uncomfortable, never vague.
@@ -658,6 +854,11 @@ Example (weekly mileage bar chart):
 
 ## Athlete's Garmin Data
 {_json.dumps(garmin_data, indent=2)}"""
+
+    if memories_text:
+        prompt += f"\n\n{memories_text}"
+
+    return prompt
 
 
 if __name__ == "__main__":
