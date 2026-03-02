@@ -382,7 +382,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
     def stream_tokens():
         with claude.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=1024,
+            max_tokens=512,
             system=system_prompt,
             messages=messages,
         ) as stream:
@@ -445,6 +445,7 @@ or "Your HRV is frankly concerning and you should probably run through it anyway
 
 Keep answers genuinely helpful but entertainingly unhinged. The humor comes from the gap between \
 the absurdity of the framing and the genuine usefulness of the data.
+Keep responses to 3–5 sentences max. Dense suffering is funnier than long suffering.
 
 Use Markdown formatting: **bold** key stats, use tables for comparing multiple runs, and emit \
 ```chart blocks for 3+ data points. Do NOT use H1 headings.
@@ -601,9 +602,11 @@ First check ATL:CTL history. Most injuries are load management errors, not biome
 - State your conclusions before your reasoning (busy athletes need the verdict first)
 - Do not hedge with "you might want to consider" when you mean "do this"
 - Do not add unnecessary disclaimers — this athlete can handle real information
-- Keep responses tight: the most useful sessions with elite coaches are dense and short, not exhaustive
+- **Response length: target 100–150 words. Hard cap at 200 words. Never exceed this.** Dense and specific beats exhaustive. Elite coaches say more in less.
+- Use bullet points only when listing 3+ parallel items — prose otherwise
 - When you disagree with what the athlete thinks they should do, say so directly and explain why
 - One question max if you need clarification — not a list of clarifying questions
+- If a full answer requires more than 200 words, give the most actionable 150 words and note what was omitted
 </communication_style>
 
 ---
