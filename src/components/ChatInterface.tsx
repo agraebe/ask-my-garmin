@@ -3,12 +3,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
-import type { Message } from '@/types';
+import type { MemoryStoredEvent, Message } from '@/types';
+
+// Sentinel appended by the backend after the main stream when a memory is stored.
+const MEMORY_SENTINEL_PREFIX = '\n[MEMORY_STORED:';
+
+/** Extract and strip the MEMORY_STORED sentinel from accumulated stream content.
+ *  The sentinel is always at the very end of the stream: \n[MEMORY_STORED:{...}]
+ *  We find the prefix, then treat everything after it (minus the trailing ]) as JSON.
+ */
+function extractMemorySentinel(text: string): {
+  content: string;
+  event: MemoryStoredEvent | null;
+} {
+  const idx = text.indexOf(MEMORY_SENTINEL_PREFIX);
+  if (idx === -1) return { content: text, event: null };
+
+  const base = text.slice(0, idx);
+  // Everything after the prefix, which should be {JSON object}]
+  const remainder = text.slice(idx + MEMORY_SENTINEL_PREFIX.length);
+
+  // Sentinel is incomplete (still streaming) — hide prefix but don't parse yet
+  if (!remainder.endsWith(']')) return { content: base, event: null };
+
+  // Strip the trailing ] and parse the JSON object
+  const jsonStr = remainder.slice(0, -1);
+  try {
+    const event = JSON.parse(jsonStr) as MemoryStoredEvent;
+    return { content: base, event };
+  } catch {
+    return { content: base, event: null };
+  }
+}
+
+/** Format a memory event as an in-message notification line. */
+function formatMemoryNotification(event: MemoryStoredEvent): string {
+  const snippet = event.content.length > 100 ? `${event.content.slice(0, 100)}…` : event.content;
+  return `\n\n[${event.action}: ${event.key} — ${snippet}]`;
+}
 
 interface Props {
   funMode?: boolean;
   isConnected: boolean;
   onLoginRequired: (question: string) => void;
+  onMemoryStored?: () => void;
   pendingQuestion?: string | null;
   onPendingQuestionHandled?: () => void;
 }
@@ -17,6 +55,7 @@ export default function ChatInterface({
   funMode = false,
   isConnected,
   onLoginRequired,
+  onMemoryStored,
   pendingQuestion,
   onPendingQuestionHandled,
 }: Props) {
@@ -87,8 +126,22 @@ export default function ChatInterface({
           const { done, value } = await reader.read();
           if (done) break;
           accumulated += decoder.decode(value, { stream: true });
-          setMessages([...updatedHistory, { role: 'assistant', content: accumulated }]);
+
+          // Strip sentinel from live display to avoid showing raw JSON to user
+          const { content: displayContent } = extractMemorySentinel(accumulated);
+          setMessages([...updatedHistory, { role: 'assistant', content: displayContent }]);
         }
+
+        // After stream completes, do final extraction and format memory notification
+        const { content: finalContent, event } = extractMemorySentinel(accumulated);
+        let displayFinal = finalContent;
+
+        if (event) {
+          displayFinal += formatMemoryNotification(event);
+          onMemoryStored?.();
+        }
+
+        setMessages([...updatedHistory, { role: 'assistant', content: displayFinal }]);
       } catch (err) {
         const errorText = err instanceof Error ? err.message : 'Something went wrong';
         setMessages([...updatedHistory, { role: 'assistant', content: `Error: ${errorText}` }]);
@@ -97,7 +150,7 @@ export default function ChatInterface({
         inputRef.current?.focus();
       }
     },
-    [messages, isStreaming, funMode, isConnected, onLoginRequired]
+    [messages, isStreaming, funMode, isConnected, onLoginRequired, onMemoryStored]
   );
 
   // Keep the ref in sync so the auto-send effect never closes over a stale sendMessage
