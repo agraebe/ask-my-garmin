@@ -100,4 +100,81 @@ describe('ChartBlock', () => {
       expect(() => render(<ChartBlock content={sparse} />)).not.toThrow();
     });
   });
+
+  describe('chart without a title', () => {
+    it('renders a bar chart without crashing when title is omitted', () => {
+      const noTitle = JSON.stringify({
+        type: 'bar',
+        labels: ['A', 'B'],
+        datasets: [{ label: 'val', data: [10, 20] }],
+      });
+      render(<ChartBlock content={noTitle} />);
+      expect(screen.getByText('10')).toBeInTheDocument();
+      expect(screen.getByText('20')).toBeInTheDocument();
+    });
+
+    it('renders a line chart without crashing when title is omitted', () => {
+      const noTitle = JSON.stringify({
+        type: 'line',
+        labels: ['Mon', 'Tue'],
+        datasets: [{ label: 'pace', data: [530, 520] }],
+      });
+      const { container } = render(<ChartBlock content={noTitle} />);
+      expect(container.querySelector('table')).toBeInTheDocument();
+    });
+  });
+
+  describe('multiple datasets', () => {
+    it('shows a legend when a bar chart has more than one dataset', () => {
+      const multi = JSON.stringify({
+        type: 'bar',
+        title: 'Comparison',
+        labels: ['Week 1', 'Week 2'],
+        datasets: [
+          { label: 'Running', data: [20, 25] },
+          { label: 'Cycling', data: [50, 60] },
+        ],
+      });
+      render(<ChartBlock content={multi} />);
+      expect(screen.getByText('Running')).toBeInTheDocument();
+      expect(screen.getByText('Cycling')).toBeInTheDocument();
+    });
+
+    it('does not show a legend flex-wrap container for a single-dataset bar chart', () => {
+      const { container } = render(<ChartBlock content={validBarChart} />);
+      // Legend only renders when datasets.length > 1
+      const legendContainer = container.querySelector('.flex.flex-wrap.gap-3');
+      expect(legendContainer).not.toBeInTheDocument();
+    });
+
+    it('renders all dataset columns in a multi-dataset line chart table', () => {
+      const multi = JSON.stringify({
+        type: 'line',
+        title: 'Heart Rate Zones',
+        labels: ['Run 1', 'Run 2'],
+        datasets: [
+          { label: 'Avg HR', data: [148, 155] },
+          { label: 'Max HR', data: [172, 180] },
+        ],
+      });
+      render(<ChartBlock content={multi} />);
+      expect(screen.getByText('Avg HR')).toBeInTheDocument();
+      expect(screen.getByText('Max HR')).toBeInTheDocument();
+      expect(screen.getByText('148')).toBeInTheDocument();
+      expect(screen.getByText('180')).toBeInTheDocument();
+    });
+  });
+
+  describe('bar chart with all-zero values', () => {
+    it('renders without crashing when all data values are zero', () => {
+      const allZero = JSON.stringify({
+        type: 'bar',
+        title: 'Empty Week',
+        labels: ['Mon', 'Tue', 'Wed'],
+        datasets: [{ label: 'miles', data: [0, 0, 0] }],
+      });
+      expect(() => render(<ChartBlock content={allZero} />)).not.toThrow();
+      expect(screen.getByText('Empty Week')).toBeInTheDocument();
+    });
+  });
 });

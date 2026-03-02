@@ -52,4 +52,35 @@ describe('GarminStatus', () => {
     await user.click(screen.getByRole('button', { name: /sign out/i }));
     expect(onLogout).toHaveBeenCalledOnce();
   });
+
+  it('shows "Connected" without an email parenthetical when no email is provided', () => {
+    render(<GarminStatus connected={true} onLoginClick={noop} onLogout={noop} />);
+    expect(screen.getByText('Connected')).toBeInTheDocument();
+    // No parenthetical email element
+    expect(screen.queryByText(/\(/)).not.toBeInTheDocument();
+  });
+
+  it('sets a descriptive title attribute when connected with an email', () => {
+    const { container } = render(
+      <GarminStatus
+        connected={true}
+        email="athlete@test.com"
+        onLoginClick={noop}
+        onLogout={noop}
+      />
+    );
+    expect(container.querySelector('[title="Connected as athlete@test.com"]')).toBeInTheDocument();
+  });
+
+  it('does not show a Sign out button when disconnected', () => {
+    render(<GarminStatus connected={false} onLoginClick={noop} onLogout={noop} />);
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
+  });
+
+  it('does not show a Connect button when connected', () => {
+    render(
+      <GarminStatus connected={true} email="x@y.com" onLoginClick={noop} onLogout={noop} />
+    );
+    expect(screen.queryByRole('button', { name: /connect/i })).not.toBeInTheDocument();
+  });
 });
