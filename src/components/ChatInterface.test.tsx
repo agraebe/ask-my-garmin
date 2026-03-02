@@ -160,4 +160,74 @@ describe('ChatInterface', () => {
     render(<ChatInterface {...defaultProps} funMode={true} />);
     expect(screen.getByText('RunBot 9000')).toBeInTheDocument();
   });
+
+  it('calls onLoginRequired with the question when user is not connected', async () => {
+    const user = userEvent.setup();
+    const onLoginRequired = vi.fn();
+    render(<ChatInterface isConnected={false} onLoginRequired={onLoginRequired} />);
+    await user.type(
+      screen.getByPlaceholderText(/ask about your activities/i),
+      'What is my VO2 max?'
+    );
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    expect(onLoginRequired).toHaveBeenCalledWith('What is my VO2 max?');
+  });
+
+  it('does not add a message bubble when not connected', async () => {
+    const user = userEvent.setup();
+    render(<ChatInterface isConnected={false} onLoginRequired={vi.fn()} />);
+    await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'Hello');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    // No message bubble should appear — user was redirected to login
+    expect(screen.queryByText('Hello')).not.toBeInTheDocument();
+  });
+
+  it('auto-sends pendingQuestion immediately when connected', async () => {
+    const onPendingQuestionHandled = vi.fn();
+    render(
+      <ChatInterface
+        {...defaultProps}
+        pendingQuestion="Deferred question"
+        onPendingQuestionHandled={onPendingQuestionHandled}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Deferred question')).toBeInTheDocument();
+    });
+    expect(onPendingQuestionHandled).toHaveBeenCalledOnce();
+  });
+
+  it('does not auto-send pendingQuestion when not connected', () => {
+    const onLoginRequired = vi.fn();
+    render(
+      <ChatInterface
+        isConnected={false}
+        onLoginRequired={onLoginRequired}
+        pendingQuestion="Pending Q"
+      />
+    );
+    // When not connected, the effect does not fire — no login or send call
+    expect(onLoginRequired).not.toHaveBeenCalled();
+    expect(screen.queryByText('Pending Q')).not.toBeInTheDocument();
+  });
+
+  it('updates the session token from the X-Session-Token response header', async () => {
+    server.use(
+      http.post('/api/ask', () =>
+        new HttpResponse('Token updated.', {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'X-Session-Token': 'new-token-xyz',
+          },
+        })
+      )
+    );
+    const user = userEvent.setup();
+    render(<ChatInterface {...defaultProps} />);
+    await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+    await waitFor(() => {
+      expect(sessionStorage.getItem('garmin_session')).toBe('new-token-xyz');
+    });
+  });
 });

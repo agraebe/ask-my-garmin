@@ -124,4 +124,95 @@ describe('MessageBubble', () => {
     expect(container.querySelector('pre')).toBeInTheDocument();
     expect(screen.getByText('print("hello")')).toBeInTheDocument();
   });
+
+  it('shows "…" placeholder for empty assistant content when not streaming', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '' }} isStreaming={false} />
+    );
+    // AssistantContent returns a <span>…</span> when blocks array is empty
+    expect(container.querySelector('span')).toBeInTheDocument();
+    expect(container.textContent).toContain('…');
+  });
+
+  it('renders a blockquote for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '> Quoted text here' }} />
+    );
+    expect(container.querySelector('blockquote')).toBeInTheDocument();
+    expect(screen.getByText('Quoted text here')).toBeInTheDocument();
+  });
+
+  it('renders a horizontal rule for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '---' }} />
+    );
+    expect(container.querySelector('hr')).toBeInTheDocument();
+  });
+
+  it('renders an ordered list for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{ role: 'assistant', content: '1. Step one\n2. Step two\n3. Step three' }}
+      />
+    );
+    expect(container.querySelector('ol')).toBeInTheDocument();
+    expect(container.querySelectorAll('li')).toHaveLength(3);
+    expect(screen.getByText('Step one')).toBeInTheDocument();
+  });
+
+  it('renders an H1 heading for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '# Top Level Heading' }} />
+    );
+    const h1 = container.querySelector('h1');
+    expect(h1).toBeInTheDocument();
+    expect(h1).toHaveTextContent('Top Level Heading');
+  });
+
+  it('renders an H3 heading for assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: '### Sub Heading' }} />
+    );
+    const h3 = container.querySelector('h3');
+    expect(h3).toBeInTheDocument();
+    expect(h3).toHaveTextContent('Sub Heading');
+  });
+
+  it('renders inline code in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: 'Run `npm install` first' }} />
+    );
+    expect(container.querySelector('code')).toBeInTheDocument();
+    expect(screen.getByText('npm install')).toBeInTheDocument();
+  });
+
+  it('renders italic text in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble message={{ role: 'assistant', content: 'This is *emphasized* text' }} />
+    );
+    expect(container.querySelector('em')).toHaveTextContent('emphasized');
+  });
+
+  it('renders links in assistant messages', () => {
+    const { container } = render(
+      <MessageBubble
+        message={{
+          role: 'assistant',
+          content: 'See [Garmin Connect](https://connect.garmin.com)',
+        }}
+      />
+    );
+    const link = container.querySelector('a');
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveTextContent('Garmin Connect');
+    expect(link).toHaveAttribute('href', 'https://connect.garmin.com');
+  });
+
+  it('preserves whitespace in user messages with newlines', () => {
+    render(
+      <MessageBubble message={{ role: 'user', content: 'Line one\nLine two' }} />
+    );
+    // User messages use whitespace-pre-wrap so newlines are preserved in the DOM
+    expect(screen.getByText('Line one\nLine two')).toBeInTheDocument();
+  });
 });
