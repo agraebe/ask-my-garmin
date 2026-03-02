@@ -16,7 +16,7 @@ test('app loads without errors', async ({ page }) => {
 
 test('shows app title in header', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Ask My Garmin' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ask My Garmin', level: 1 })).toBeVisible();
 });
 
 test('shows suggested questions in empty state', async ({ page }) => {
