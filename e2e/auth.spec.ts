@@ -159,7 +159,7 @@ test('2FA: Back button returns to credentials step', async ({ page }) => {
   await page.getByRole('button', { name: /sign in/i }).click();
 
   await expect(page.getByLabel('Verification code')).toBeVisible();
-  await page.getByRole('button', { name: /back/i }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
 
   await expect(page.getByLabel('Email')).toBeVisible();
 });
