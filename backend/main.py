@@ -549,14 +549,21 @@ async def ask(body: AskRequest) -> StreamingResponse:
         )
 
     def stream_tokens():
-        with claude.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=512,
-            system=system_prompt,
-            messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                yield text
+        try:
+            with claude.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=512,
+                system=system_prompt,
+                messages=messages,
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
+        except Exception as exc:
+            logger.error("Claude stream failed: %s", exc, exc_info=True)
+            if _detection_executor:
+                _detection_executor.shutdown(wait=False)
+            yield f"Sorry, I encountered an error while generating a response: {exc}"
+            return
 
         # After the main stream completes, check for a detected memory
         if _detection_future is not None:
