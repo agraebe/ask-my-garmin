@@ -8,6 +8,7 @@ isolated — no shared global state.
 import logging
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import garth
 
@@ -45,7 +46,7 @@ def get_recent_activities(client: garth.Client, limit: int = 200, page_size: int
 
 def get_daily_summary(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
     return client.connectapi(
-        f"/usersummary-service/usersummary/daily/{display_name}",
+        f"/usersummary-service/usersummary/daily/{quote(display_name, safe='')}",
         params={"calendarDate": date_str},
     )
 
@@ -58,7 +59,7 @@ def get_training_status(client: garth.Client, date_str: str) -> dict[str, Any]:
 
 def get_sleep_data(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
     return client.connectapi(
-        f"/wellness-service/wellness/dailySleepData/{display_name}",
+        f"/wellness-service/wellness/dailySleepData/{quote(display_name, safe='')}",
         params={"date": date_str},
     )
 

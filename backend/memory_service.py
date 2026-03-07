@@ -7,6 +7,7 @@ Provides:
  - Autonomous memory detection via Claude Haiku
 """
 
+import base64
 import hashlib
 import json
 import logging
@@ -53,16 +54,45 @@ Respond with a JSON object only (no markdown):
 If should_store is false, set key, content, and category to empty strings."""
 
 
+def _jwt_sub(access_token: str) -> str:
+    """Decode a JWT payload (no signature verification) and return the sub claim."""
+    parts = access_token.split(".")
+    if len(parts) < 2:
+        raise ValueError("Not a valid JWT")
+    payload = parts[1]
+    padding = 4 - len(payload) % 4
+    if padding != 4:
+        payload += "=" * padding
+    data = json.loads(base64.b64decode(payload))
+    sub = str(data.get("sub", ""))
+    if not sub:
+        raise ValueError("JWT has no sub claim")
+    return sub
+
+
 def get_user_id_hash(client: garth.Client) -> str:
-    """Return SHA-256 of the Garmin user's numeric user ID."""
+    """Return SHA-256 of the Garmin user's numeric user ID.
+
+    Tries the Garmin profile API first. If that fails (e.g. 403 or network
+    error), falls back to decoding the sub claim from the OAuth2 access token
+    so that memory operations remain available when the Garmin API is flaky.
+    """
+    # Primary: Garmin profile API
     try:
         profile = client.connectapi("/userprofile-service/userprofile/personal-information")
         user_id = str((profile or {}).get("userId", ""))
-        if not user_id:
-            raise ValueError("No userId in Garmin profile")
-        return hashlib.sha256(user_id.encode()).hexdigest()
+        if user_id:
+            return hashlib.sha256(user_id.encode()).hexdigest()
+        logger.warning("Garmin profile returned no userId; falling back to JWT sub")
     except Exception as exc:
-        raise ValueError(f"Could not derive user identity: {exc}") from exc
+        logger.warning("Profile API failed, falling back to JWT sub: %s", exc)
+
+    # Fallback: JWT sub claim from OAuth2 access token (no network call)
+    try:
+        sub = _jwt_sub(client.oauth2_token.access_token)
+        return hashlib.sha256(sub.encode()).hexdigest()
+    except Exception as exc:
+        raise ValueError(f"Could not derive user identity from profile API or OAuth token: {exc}") from exc
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
