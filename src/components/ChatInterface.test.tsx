@@ -229,7 +229,7 @@ describe('ChatInterface', () => {
     await user.type(screen.getByPlaceholderText(/ask about your activities/i), 'test');
     await user.click(screen.getByRole('button', { name: /send/i }));
     await waitFor(() => {
-      expect(sessionStorage.getItem('garmin_session')).toBe('new-token-xyz');
+      expect(localStorage.getItem('garmin_session')).toBe('new-token-xyz');
     });
   });
 });

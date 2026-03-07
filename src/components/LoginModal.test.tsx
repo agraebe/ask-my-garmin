@@ -25,6 +25,48 @@ describe('LoginModal', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
   });
 
+  it('persists session token to localStorage (not sessionStorage) after login', async () => {
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json({ status: 'ok', session_token: 'tok-abc' })
+      )
+    );
+    const user = userEvent.setup();
+    render(<LoginModal onSuccess={vi.fn()} />);
+    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'secret');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(localStorage.getItem('garmin_session')).toBe('tok-abc');
+    });
+    expect(sessionStorage.getItem('garmin_session')).toBeNull();
+  });
+
+  it('persists session token to localStorage after MFA verification', async () => {
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json({ status: 'mfa_required', session_id: 'sess-123' })
+      ),
+      http.post('/api/auth/mfa', () =>
+        HttpResponse.json({ status: 'ok', session_token: 'tok-mfa' })
+      )
+    );
+    const user = userEvent.setup();
+    render(<LoginModal onSuccess={vi.fn()} />);
+    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'secret');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument());
+    await user.type(screen.getByLabelText(/verification code/i), '123456');
+
+    await waitFor(() => {
+      expect(localStorage.getItem('garmin_session')).toBe('tok-mfa');
+    });
+    expect(sessionStorage.getItem('garmin_session')).toBeNull();
+  });
+
   it('shows the MFA step when the server returns mfa_required', async () => {
     server.use(
       http.post('/api/auth/login', () =>
