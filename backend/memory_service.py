@@ -73,9 +73,11 @@ def _jwt_sub(access_token: str) -> str:
 def get_user_id_hash(client: garth.Client) -> str:
     """Return SHA-256 of the Garmin user's numeric user ID.
 
-    Tries the Garmin profile API first. If that fails (e.g. 403 or network
-    error), falls back to decoding the sub claim from the OAuth2 access token
-    so that memory operations remain available when the Garmin API is flaky.
+    Tries multiple sources in order so memory operations stay available even
+    when the Garmin API is flaky or tokens are opaque (non-JWT):
+      1. Garmin profile API (network call, returns stable numeric userId)
+      2. JWT sub claim from OAuth2 access token (no network, only works for JWT tokens)
+      3. OAuth1 oauth_token (stable per Garmin account, always available, no network)
     """
     # Primary: Garmin profile API
     try:
@@ -83,16 +85,31 @@ def get_user_id_hash(client: garth.Client) -> str:
         user_id = str((profile or {}).get("userId", ""))
         if user_id:
             return hashlib.sha256(user_id.encode()).hexdigest()
-        logger.warning("Garmin profile returned no userId; falling back to JWT sub")
+        logger.warning("Garmin profile returned no userId; trying JWT sub")
     except Exception as exc:
-        logger.warning("Profile API failed, falling back to JWT sub: %s", exc)
+        logger.warning("Profile API failed, trying JWT sub: %s", exc)
 
-    # Fallback: JWT sub claim from OAuth2 access token (no network call)
+    # Second fallback: JWT sub claim from OAuth2 access token (no network call)
     try:
         sub = _jwt_sub(client.oauth2_token.access_token)
         return hashlib.sha256(sub.encode()).hexdigest()
     except Exception as exc:
-        raise ValueError(f"Could not derive user identity from profile API or OAuth token: {exc}") from exc
+        logger.warning("JWT sub fallback failed, trying OAuth1 token: %s", exc)
+
+    # Third fallback: OAuth1 oauth_token — stable per Garmin account, always present
+    try:
+        oauth1 = getattr(client, "oauth1_token", None)
+        if oauth1:
+            token = getattr(oauth1, "oauth_token", "") or ""
+            if token:
+                return hashlib.sha256(token.encode()).hexdigest()
+        logger.warning("OAuth1 fallback: no oauth_token found on client")
+    except Exception as exc:
+        logger.warning("OAuth1 token fallback failed: %s", exc)
+
+    raise ValueError(
+        "Could not derive user identity from profile API, JWT, or OAuth1 token"
+    )
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────

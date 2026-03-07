@@ -649,6 +649,12 @@ Use Markdown formatting: **bold** key stats, use tables for comparing multiple r
 ```chart blocks for 3+ data points. Do NOT use H1 headings.
 Today's date: {today}.
 
+## Memory System
+This system automatically detects and stores information the athlete shares about themselves \
+(race events, goals, injuries, training context). When relevant memories are available, \
+they appear below. Do NOT tell the athlete you cannot remember things — the memory system \
+handles persistence automatically across sessions.
+
 ## User's Garmin Data
 {_json.dumps(garmin_data, indent=2)}"""
 
@@ -811,6 +817,17 @@ First check ATL:CTL history. Most injuries are load management errors, not biome
 - One question max if you need clarification — not a list of clarifying questions
 - If a full answer requires more than 200 words, give the most actionable 150 words and note what was omitted
 </communication_style>
+
+---
+
+<memory_system>
+This system automatically detects and stores information the athlete shares about themselves
+across sessions (race events, goals, injuries, training context, personal notes). Stored
+memories are injected into this prompt under "Athlete's Persistent Memory" when available.
+Do NOT tell the athlete you cannot remember things between sessions — the memory system
+handles this automatically. When the athlete shares new personal information, acknowledge
+it naturally; the system will store it in the background.
+</memory_system>
 
 ---
 
