@@ -543,8 +543,10 @@ async def ask(body: AskRequest) -> StreamingResponse:
         user_id = await loop.run_in_executor(
             None, memory_service.get_user_id_hash, ephemeral_client
         )
+        logger.info("ask: user_id resolved to %s…", user_id[:8] if user_id else "None")
         memories = await loop.run_in_executor(None, memory_service.list_memories, user_id)
         memories_text = memory_service.format_memories_for_prompt(memories)
+        logger.info("ask: loaded %d memories", len(memories))
     except Exception as exc:
         logger.warning("Memory load failed (non-fatal): %s", exc)
 
@@ -604,7 +606,9 @@ async def ask(body: AskRequest) -> StreamingResponse:
         # After the main stream completes, check for a detected memory
         if _detection_future is not None:
             try:
-                memory_result = _detection_future.result(timeout=10)
+                logger.info("stream_tokens: waiting for memory detection result")
+                memory_result = _detection_future.result(timeout=15)
+                logger.info("stream_tokens: detection result = %s", memory_result)
                 if memory_result:
                     action = "Updated memory" if memory_result.get("updated") else "Remembered"
                     sentinel_data = json.dumps(
@@ -616,9 +620,10 @@ async def ask(body: AskRequest) -> StreamingResponse:
                             "action": action,
                         }
                     )
+                    logger.info("stream_tokens: emitting MEMORY_STORED sentinel key=%r", memory_result["key"])
                     yield f"\n[MEMORY_STORED:{sentinel_data}]"
             except Exception:
-                pass
+                logger.exception("stream_tokens: memory detection future failed")
             finally:
                 if _detection_executor:
                     _detection_executor.shutdown(wait=False)

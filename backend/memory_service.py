@@ -280,9 +280,12 @@ def detect_and_store_memory(
 
     Designed to run in a background thread concurrently with the main stream.
     """
+    logger.info("detect_and_store_memory: start for user %s…", user_id[:8])
     if not database.is_available():
+        logger.warning("detect_and_store_memory: DB not available — skipping")
         return None
     if not ANTHROPIC_API_KEY:
+        logger.warning("detect_and_store_memory: no ANTHROPIC_API_KEY — skipping")
         return None
 
     try:
@@ -294,11 +297,13 @@ def detect_and_store_memory(
             messages=[{"role": "user", "content": question}],
         )
         raw = response.content[0].text.strip() if response.content else ""
+        logger.info("detect_and_store_memory: Haiku raw response: %s", raw)
         result: dict[str, Any] = json.loads(raw)
     except Exception:
-        logger.exception("Memory detection failed")
+        logger.exception("Memory detection failed (Haiku call or JSON parse)")
         return None
 
+    logger.info("detect_and_store_memory: should_store=%s key=%r", result.get("should_store"), result.get("key"))
     if not result.get("should_store"):
         return None
 
@@ -312,6 +317,7 @@ def detect_and_store_memory(
     # Deduplicate: if a memory with the same key exists, update it
     existing = find_similar_key(user_id, key)
     if existing:
+        logger.info("detect_and_store_memory: updating existing memory id=%s key=%r", existing.id, key)
         updated = update_memory(existing.id, user_id, key=key, content=content, category=category)
         if updated:
             return {
@@ -320,6 +326,7 @@ def detect_and_store_memory(
                 "content": updated.content,
                 "updated": True,
             }
+        logger.error("detect_and_store_memory: update_memory returned None for id=%s", existing.id)
         return None
 
     memory = create_memory(
@@ -330,12 +337,14 @@ def detect_and_store_memory(
         source_context=question[:200],
     )
     if memory:
+        logger.info("detect_and_store_memory: created memory id=%s key=%r", memory.id, memory.key)
         return {
             "id": memory.id,
             "key": memory.key,
             "content": memory.content,
             "updated": False,
         }
+    logger.error("detect_and_store_memory: create_memory returned None for key=%r", key)
     return None
 
 
