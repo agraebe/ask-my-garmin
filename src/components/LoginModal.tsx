@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   onSuccess: (token: string) => void;
+  onClose?: () => void;
 }
 
 type Step = 'credentials' | 'mfa';
@@ -29,7 +30,7 @@ function GarminIcon({ size = 24 }: { size?: number }) {
   );
 }
 
-export default function LoginModal({ onSuccess }: Props) {
+export default function LoginModal({ onSuccess, onClose }: Props) {
   const [step, setStep] = useState<Step>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,6 +39,15 @@ export default function LoginModal({ onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const mfaFormRef = useRef<HTMLFormElement>(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose?.();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Auto-submit MFA form once all 6 digits are entered.
   // Only re-run when mfaCode/step changes — not when loading flips back to false,
@@ -111,8 +121,36 @@ export default function LoginModal({ onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-garmin-surface p-8 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Connect your Garmin account"
+    >
+      {/* Stop click propagation so clicking inside the card doesn't close the modal */}
+      <div
+        className="relative w-full max-w-sm rounded-2xl bg-garmin-surface p-8 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full text-garmin-text-muted transition-colors hover:bg-garmin-surface-2 hover:text-garmin-text"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M18 6L6 18M6 6l12 12"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
+
         {/* Logo + title */}
         <div className="mb-6 flex flex-col items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-garmin-blue text-white">

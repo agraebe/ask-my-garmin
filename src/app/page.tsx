@@ -156,7 +156,15 @@ export default function Home() {
       </header>
 
       {/* Login modal — only shown when explicitly triggered (e.g. intercepted send) */}
-      {showLogin && <LoginModal onSuccess={handleLoginSuccess} />}
+      {showLogin && (
+        <LoginModal
+          onSuccess={handleLoginSuccess}
+          onClose={() => {
+            setShowLogin(false);
+            setPendingQuestion(null);
+          }}
+        />
+      )}
 
       {/* Memory panel */}
       {showMemoryPanel && (

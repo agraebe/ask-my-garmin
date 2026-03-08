@@ -227,6 +227,54 @@ describe('LoginModal', () => {
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
   });
 
+  it('calls onClose when the close button is clicked', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<LoginModal onSuccess={vi.fn()} onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: /close/i }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('calls onClose when the backdrop is clicked', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { container } = render(<LoginModal onSuccess={vi.fn()} onClose={onClose} />);
+
+    // The backdrop is the outermost dialog element
+    const backdrop = container.querySelector('[role="dialog"]')!;
+    await user.click(backdrop);
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('does not call onClose when clicking inside the modal card', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<LoginModal onSuccess={vi.fn()} onClose={onClose} />);
+
+    // Clicking a form element inside the card should not trigger close
+    await user.click(screen.getByLabelText(/email/i));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('calls onClose when Escape is pressed', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<LoginModal onSuccess={vi.fn()} onClose={onClose} />);
+
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('does not render close button when onClose is not provided', () => {
+    render(<LoginModal onSuccess={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
+  });
+
   it('shows a network error message when the MFA fetch fails', async () => {
     server.use(
       http.post('/api/auth/login', () =>

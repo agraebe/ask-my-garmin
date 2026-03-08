@@ -1,4 +1,4 @@
-name: Nightly E2E Tests
+name: Nightly Production Smoke Tests
 
 on:
   schedule:
@@ -8,17 +8,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  e2e:
-    name: Playwright E2E
+  smoke:
+    name: Production Smoke (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
+
     outputs:
       failure_summary: ${{ steps.parse.outputs.failure_summary }}
       fail_count: ${{ steps.parse.outputs.fail_count }}
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -32,16 +35,17 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
-      - name: Run E2E tests
+      - name: Run production smoke tests
         id: run_tests
-        run: npm run e2e
+        run: npx playwright test e2e/production-smoke.spec.ts
         continue-on-error: true
         env:
           CI: 'true'
-          # Point at live deployments for full-stack service checks.
-          # These are optional — service tests are skipped when unset.
-          VERCEL_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-          RAILWAY_URL: ${{ vars.RAILWAY_PRODUCTION_URL }}
+          # Point Playwright at the live Vercel deployment
+          BASE_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
+          # Real Garmin credentials — stored as GitHub Actions secrets
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
 
       - name: Parse test results
         id: parse
@@ -91,15 +95,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ github.run_id }}
+          name: smoke-report-${{ github.run_id }}
           path: playwright-report/
           retention-days: 14
 
-      - name: Upload test results
+      - name: Upload test results (screenshots / traces)
         if: steps.run_tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ github.run_id }}
+          name: smoke-results-${{ github.run_id }}
           path: test-results/
           retention-days: 14
 
@@ -108,14 +112,10 @@ jobs:
         if: steps.run_tests.outcome == 'failure'
         run: exit 1
 
-  # If the e2e job failed, open a GitHub Issue and tag @claude for auto-fix.
-  # Uses GH_PAT (a personal access token) instead of GITHUB_TOKEN so that
-  # GitHub fires the issues:opened event, which triggers the claude.yml workflow.
-  # (Issues created by GITHUB_TOKEN are suppressed from triggering other workflows
-  # to prevent infinite loops — a PAT bypasses that restriction.)
+  # If the smoke job failed, open a GitHub Issue and tag @claude for auto-fix.
   open-fix-issue:
     name: Open auto-fix issue on failure
-    needs: e2e
+    needs: smoke
     if: failure()
     runs-on: ubuntu-latest
     permissions:
@@ -125,8 +125,8 @@ jobs:
       - name: Create GitHub Issue for Claude auto-fix
         uses: actions/github-script@v7
         env:
-          FAIL_COUNT: ${{ needs.e2e.outputs.fail_count }}
-          FAILURE_SUMMARY: ${{ needs.e2e.outputs.failure_summary }}
+          FAIL_COUNT: ${{ needs.smoke.outputs.fail_count }}
+          FAILURE_SUMMARY: ${{ needs.smoke.outputs.failure_summary }}
         with:
           github-token: ${{ secrets.GH_PAT }}
           script: |
@@ -137,7 +137,7 @@ jobs:
             const reportArtifactUrl = `${runUrl}#artifacts`;
 
             const body = [
-              '## 🔴 Nightly E2E Tests Failed',
+              '## 🔴 Nightly Smoke Tests Failed — Production is broken',
               '',
               `**Workflow run:** ${runUrl}`,
               `**Playwright report:** ${reportArtifactUrl}`,
@@ -146,19 +146,24 @@ jobs:
               '',
               failureSummary,
               '',
+              '### Context',
+              'These are **real production smoke tests** — they hit the live Vercel frontend,',
+              'Railway backend, Garmin API, and Anthropic API with real credentials.',
+              'A failure means at least one core user flow is broken in production.',
+              '',
               '### What to do',
               '@claude Please:',
-              '1. Review the failed tests listed above and identify the root cause.',
-              '2. Check Vercel runtime logs and Railway service logs via MCP for any server-side errors coinciding with the test run.',
+              '1. Review the failed tests and identify the root cause.',
+              '2. Check Vercel runtime logs and Railway service logs for errors around the test run time.',
               '3. Fix the bug in a new branch and open a PR that closes this issue.',
               '',
-              '> This issue was opened automatically by the nightly E2E workflow.',
+              '> This issue was opened automatically by the nightly smoke test workflow.',
             ].join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `[Nightly E2E] ${failCount} test(s) failed on ${date}`,
+              title: `[Nightly Smoke] ${failCount} test(s) failed on ${date} — production is broken`,
               body,
               labels: ['bug', 'automated'],
             });
