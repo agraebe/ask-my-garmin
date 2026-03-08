@@ -125,7 +125,7 @@ test('wrong credentials shows error message', async ({ page }) => {
 // ── MFA flow ──────────────────────────────────────────────────────────────────
 
 test('2FA flow: advances to MFA step then logs in', async ({ page }) => {
-  setupMfaMocks(page);
+  await setupMfaMocks(page);
   await mockChat(page);
   await page.goto('/');
 
@@ -148,7 +148,7 @@ test('2FA flow: advances to MFA step then logs in', async ({ page }) => {
 });
 
 test('2FA: Back button returns to credentials step', async ({ page }) => {
-  setupMfaMocks(page);
+  await setupMfaMocks(page);
   await page.goto('/');
 
   await page.getByPlaceholder(/ask about your activities/i).fill('test');
