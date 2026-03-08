@@ -29,15 +29,15 @@ logger = logging.getLogger("ask-my-garmin.memory_service")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 _DETECTION_SYSTEM = """\
-You are a memory extraction assistant for a running coach AI. Identify information in an \
-athlete's message that a coach would want to remember across future sessions.
+You are a memory extraction assistant for a running coach AI. Extract ALL distinct pieces \
+of information in an athlete's message that a coach would want to remember across sessions.
 
 Information worth remembering (explicit statements only — not hypothetical or general):
-- Upcoming race events (name, date, distance)
+- Past or upcoming race events (name, approximate date, distance, finish time/goal)
 - Training goals (target finish time, target event)
 - Injuries or health issues the athlete mentions
 - Athlete-supplied context not in Garmin data (training plan, coach instructions, etc.)
-- Personal context relevant to training (schedule, travel, life stress, etc.)
+- Personal context relevant to training (age, weight, height, schedule, travel, etc.)
 
 Do NOT store:
 - Questions or hypotheticals ("what if I...")
@@ -45,14 +45,18 @@ Do NOT store:
 - Vague statements ("I want to run more")
 - Coach advice or AI responses (only athlete-supplied information)
 
-Respond with a JSON object only (no markdown):
+Respond with a JSON object only — no markdown, no prose before or after:
 {
-  "should_store": true | false,
-  "key": "Short label, 2-5 words (e.g. 'Next Marathon', 'Injury History')",
-  "content": "Full detail as the athlete stated it",
-  "category": "race_event" | "goal" | "injury" | "training_context" | "personal"
+  "memories": [
+    {
+      "key": "Short label, 2-5 words (e.g. 'HM Santa Barbara 2025', 'Left Knee Injury')",
+      "content": "Full detail as the athlete stated it",
+      "category": "race_event" | "goal" | "injury" | "training_context" | "personal"
+    }
+  ]
 }
-If should_store is false, set key, content, and category to empty strings."""
+If there is nothing worth storing, return: {"memories": []}
+Each distinct piece of information must be a SEPARATE object in the array."""
 
 
 def _jwt_sub(access_token: str) -> str:
@@ -288,27 +292,27 @@ def _extract_json_candidates(raw: str) -> list[str]:
 def detect_and_store_memory(
     question: str,
     user_id: str,
-) -> dict[str, Any] | None:
+) -> list[dict[str, Any]]:
     """
     Run a lightweight Claude Haiku call to detect if the user message contains
-    information worth persisting as a memory. If found, store it and return
-    a dict with the created memory data.
+    information worth persisting as memories. Stores ALL detected items and returns
+    a list of stored memory dicts (empty list if nothing stored).
 
     Designed to run in a background thread concurrently with the main stream.
     """
     logger.info("detect_and_store_memory: start for user %s…", user_id[:8])
     if not database.is_available():
         logger.warning("detect_and_store_memory: DB not available — skipping")
-        return None
+        return []
     if not ANTHROPIC_API_KEY:
         logger.warning("detect_and_store_memory: no ANTHROPIC_API_KEY — skipping")
-        return None
+        return []
 
     try:
         claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = claude.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=256,
+            max_tokens=512,
             temperature=0,  # deterministic JSON output
             system=_DETECTION_SYSTEM,
             messages=[{"role": "user", "content": question}],
@@ -317,11 +321,11 @@ def detect_and_store_memory(
         logger.info("detect_and_store_memory: Haiku raw response (stop_reason=%s): %r", response.stop_reason, raw[:500])
     except Exception:
         logger.exception("Memory detection failed (Haiku API call)")
-        return None
+        return []
 
     if not raw:
         logger.warning("detect_and_store_memory: Haiku returned empty response — skipping")
-        return None
+        return []
 
     # Attempt 1: parse the whole response as JSON
     # Attempt 2: strip markdown fences (```json ... ```)
@@ -336,51 +340,47 @@ def detect_and_store_memory(
 
     if result is None:
         logger.error("detect_and_store_memory: all JSON parse attempts failed on: %r", raw[:300])
-        return None
+        return []
 
-    logger.info("detect_and_store_memory: should_store=%s key=%r", result.get("should_store"), result.get("key"))
-    if not result.get("should_store"):
-        return None
+    memories_data = result.get("memories", [])
+    if not isinstance(memories_data, list):
+        logger.error("detect_and_store_memory: expected 'memories' list, got %r", type(memories_data))
+        return []
 
-    key = result.get("key", "").strip()
-    content = result.get("content", "").strip()
-    category = result.get("category", "personal")
+    logger.info("detect_and_store_memory: Haiku identified %d item(s) to store", len(memories_data))
 
-    if not key or not content:
-        return None
+    stored: list[dict[str, Any]] = []
+    for item in memories_data:
+        key = item.get("key", "").strip()
+        content = item.get("content", "").strip()
+        category = item.get("category", "personal")
+        if not key or not content:
+            continue
 
-    # Deduplicate: if a memory with the same key exists, update it
-    existing = find_similar_key(user_id, key)
-    if existing:
-        logger.info("detect_and_store_memory: updating existing memory id=%s key=%r", existing.id, key)
-        updated = update_memory(existing.id, user_id, key=key, content=content, category=category)
-        if updated:
-            return {
-                "id": updated.id,
-                "key": updated.key,
-                "content": updated.content,
-                "updated": True,
-            }
-        logger.error("detect_and_store_memory: update_memory returned None for id=%s", existing.id)
-        return None
+        existing = find_similar_key(user_id, key)
+        if existing:
+            logger.info("detect_and_store_memory: updating existing id=%s key=%r", existing.id, key)
+            updated = update_memory(existing.id, user_id, key=key, content=content, category=category)
+            if updated:
+                stored.append({"id": updated.id, "key": updated.key, "content": updated.content, "updated": True})
+            else:
+                logger.error("detect_and_store_memory: update_memory returned None for id=%s", existing.id)
+        else:
+            memory = create_memory(
+                user_id=user_id,
+                key=key,
+                content=content,
+                category=category,
+                source_context=question[:200],
+            )
+            if memory:
+                logger.info("detect_and_store_memory: created id=%s key=%r", memory.id, memory.key)
+                stored.append({"id": memory.id, "key": memory.key, "content": memory.content, "updated": False})
+            else:
+                logger.error("detect_and_store_memory: create_memory returned None for key=%r", key)
 
-    memory = create_memory(
-        user_id=user_id,
-        key=key,
-        content=content,
-        category=category,
-        source_context=question[:200],
-    )
-    if memory:
-        logger.info("detect_and_store_memory: created memory id=%s key=%r", memory.id, memory.key)
-        return {
-            "id": memory.id,
-            "key": memory.key,
-            "content": memory.content,
-            "updated": False,
-        }
-    logger.error("detect_and_store_memory: create_memory returned None for key=%r", key)
-    return None
+    logger.info("detect_and_store_memory: stored %d of %d item(s)", len(stored), len(memories_data))
+    return stored
 
 
 def format_memories_for_prompt(memories: list[Memory]) -> str:

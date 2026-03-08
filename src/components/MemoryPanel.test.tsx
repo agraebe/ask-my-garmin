@@ -5,9 +5,9 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/msw/server';
 import MemoryPanel from './MemoryPanel';
 
-// Seed sessionStorage with a fake session token before each test
+// Seed localStorage with a fake session token before each test
 beforeEach(() => {
-  sessionStorage.setItem('garmin_session', 'fake-token');
+  localStorage.setItem('garmin_session', 'fake-token');
 });
 
 describe('MemoryPanel', () => {
@@ -40,9 +40,7 @@ describe('MemoryPanel', () => {
   });
 
   it('shows error state when API fails', async () => {
-    server.use(
-      http.get('/api/memories', () => new HttpResponse(null, { status: 500 }))
-    );
+    server.use(http.get('/api/memories', () => new HttpResponse(null, { status: 500 })));
     render(<MemoryPanel onClose={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getByText(/HTTP 500/)).toBeInTheDocument();

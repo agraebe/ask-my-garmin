@@ -570,7 +570,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
     )
 
     # Start memory detection concurrently in a background thread
-    _detection_future: concurrent.futures.Future[dict[str, Any] | None] | None = None
+    _detection_future: concurrent.futures.Future[list[dict[str, Any]]] | None = None
     _detection_executor: concurrent.futures.ThreadPoolExecutor | None = None
 
     if user_id and database.is_available():
@@ -603,24 +603,32 @@ async def ask(body: AskRequest) -> StreamingResponse:
             yield f"Sorry, I encountered an error while generating a response: {exc}"
             return
 
-        # After the main stream completes, check for a detected memory
+        # After the main stream completes, check for detected memories
         if _detection_future is not None:
             try:
                 logger.info("stream_tokens: waiting for memory detection result")
-                memory_result = _detection_future.result(timeout=15)
-                logger.info("stream_tokens: detection result = %s", memory_result)
-                if memory_result:
-                    action = "Updated memory" if memory_result.get("updated") else "Remembered"
+                memory_results = _detection_future.result(timeout=15)
+                logger.info("stream_tokens: detection returned %d stored item(s)", len(memory_results))
+                if memory_results:
+                    first = memory_results[0]
+                    count = len(memory_results)
+                    if count > 1:
+                        action = f"Remembered {count} items"
+                    elif first.get("updated"):
+                        action = "Updated memory"
+                    else:
+                        action = "Remembered"
                     sentinel_data = json.dumps(
                         {
-                            "id": memory_result["id"],
-                            "key": memory_result["key"],
-                            "content": memory_result["content"],
-                            "updated": memory_result.get("updated", False),
+                            "id": first["id"],
+                            "key": first["key"],
+                            "content": first["content"],
+                            "updated": first.get("updated", False),
                             "action": action,
+                            "count": count,
                         }
                     )
-                    logger.info("stream_tokens: emitting MEMORY_STORED sentinel key=%r", memory_result["key"])
+                    logger.info("stream_tokens: emitting MEMORY_STORED sentinel for %d item(s)", count)
                     yield f"\n[MEMORY_STORED:{sentinel_data}]"
             except Exception:
                 logger.exception("stream_tokens: memory detection future failed")
@@ -691,10 +699,11 @@ Use Markdown formatting: **bold** key stats, use tables for comparing multiple r
 Today's date: {today}.
 
 ## Memory System
-This system automatically detects and stores information the athlete shares about themselves \
-(race events, goals, injuries, training context). When relevant memories are available, \
-they appear below. Do NOT tell the athlete you cannot remember things — the memory system \
-handles persistence automatically across sessions.
+A background system automatically detects and stores information the athlete shares \
+(race events, goals, injuries, training context). Stored memories appear below when available. \
+Do NOT tell the athlete their information was stored, saved, or remembered — do not use \
+phrases like "I've stored", "that's now in your record", or any similar confirmation. \
+Just use the information. The memory system operates silently.
 
 ## User's Garmin Data
 {_json.dumps(garmin_data, indent=2)}"""
@@ -862,12 +871,16 @@ First check ATL:CTL history. Most injuries are load management errors, not biome
 ---
 
 <memory_system>
-This system automatically detects and stores information the athlete shares about themselves
-across sessions (race events, goals, injuries, training context, personal notes). Stored
-memories are injected into this prompt under "Athlete's Persistent Memory" when available.
-Do NOT tell the athlete you cannot remember things between sessions — the memory system
-handles this automatically. When the athlete shares new personal information, acknowledge
-it naturally; the system will store it in the background.
+A background system automatically detects and stores information the athlete shares across
+sessions (race events, goals, injuries, training context, personal notes). Stored memories
+are injected into this prompt when available.
+
+CRITICAL INSTRUCTION: Do NOT tell the athlete their information was stored, saved, or
+remembered. Do NOT use phrases like "I've stored", "I've saved", "That's now in your
+record", "These are now in your permanent record", "I'll remember that", or anything
+similar. Do NOT claim to have done anything with the information.
+
+Simply use the information in your answer. The memory system operates silently.
 </memory_system>
 
 ---

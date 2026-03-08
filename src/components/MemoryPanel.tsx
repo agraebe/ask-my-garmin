@@ -35,7 +35,7 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const fetchMemories = useCallback(async () => {
-    const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
+    const sessionToken = localStorage.getItem('garmin_session') ?? '';
     if (!sessionToken) {
       setLoading(false);
       return;
@@ -73,7 +73,7 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
   }
 
   async function saveEdit(id: string) {
-    const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
+    const sessionToken = localStorage.getItem('garmin_session') ?? '';
     try {
       const res = await fetch(`/api/memories/${id}`, {
         method: 'PATCH',
@@ -94,7 +94,7 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
   }
 
   async function confirmDelete(id: string) {
-    const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
+    const sessionToken = localStorage.getItem('garmin_session') ?? '';
     try {
       const res = await fetch(`/api/memories/${id}`, {
         method: 'DELETE',
