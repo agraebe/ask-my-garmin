@@ -383,6 +383,17 @@ async def logout() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/health")
+async def health() -> dict[str, Any]:
+    """Health check — reports database, API key, and session secret status."""
+    return {
+        "status": "ok",
+        "database": database.is_available(),
+        "anthropic_key": bool(ANTHROPIC_API_KEY),
+        "session_secret": bool(_SESSION_SECRET),
+    }
+
+
 # ── Memory routes ─────────────────────────────────────────────────────────────
 
 
@@ -567,6 +578,11 @@ async def ask(body: AskRequest) -> StreamingResponse:
             body.question,
             user_id,
         )
+    else:
+        if not database.is_available():
+            logger.warning("Memory detection skipped — database not available")
+        elif not user_id:
+            logger.warning("Memory detection skipped — could not identify user")
 
     def stream_tokens():
         try:

@@ -8,7 +8,7 @@ set, all memory operations silently fail rather than crashing the server.
 import logging
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 logger = logging.getLogger("ask-my-garmin.database")
@@ -34,12 +34,21 @@ if _DATABASE_URL:
             _DATABASE_URL,
             pool_pre_ping=True,
             pool_recycle=1800,
-            connect_args={"connect_timeout": 10},
+            connect_args={"connect_timeout": 5},
         )
         SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+        # Verify connectivity immediately — create_engine() does not actually connect
+        with engine.connect() as _conn:
+            _conn.execute(text("SELECT 1"))
         _db_available = True
+        logger.info("Database connection verified OK")
     except Exception:
-        logger.exception("Failed to create database engine")
+        logger.exception(
+            "Database unreachable — memory features disabled. "
+            "For local dev, use a publicly reachable URL, not postgres.railway.internal"
+        )
+        engine = None
+        SessionLocal = None
 else:
     logger.warning("DATABASE_URL not set — memory features are disabled")
 
@@ -61,6 +70,7 @@ def get_session():
 
 def init_db() -> None:
     """Create all tables if they don't exist. No-op if DB is unavailable."""
+    global _db_available
     if engine is None:
         logger.info("Skipping DB init — DATABASE_URL not configured")
         return
@@ -68,4 +78,5 @@ def init_db() -> None:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables initialised")
     except Exception:
-        logger.exception("Failed to initialise database tables")
+        logger.exception("Failed to initialise database tables — disabling memory features")
+        _db_available = False
