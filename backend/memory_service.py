@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -269,6 +270,21 @@ def find_similar_key(user_id: str, key: str) -> Memory | None:
 # ── Detection ─────────────────────────────────────────────────────────────────
 
 
+def _extract_json_candidates(raw: str) -> list[str]:
+    """Return a list of strings to try parsing as JSON, in order of preference."""
+    candidates = [raw]
+    # Strip markdown fences: ```json\n...\n``` or ```\n...\n```
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        inner = lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+        candidates.append("\n".join(inner).strip())
+    # Regex: find the first {...} block (handles surrounding prose)
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        candidates.append(m.group())
+    return candidates
+
+
 def detect_and_store_memory(
     question: str,
     user_id: str,
@@ -293,6 +309,7 @@ def detect_and_store_memory(
         response = claude.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
+            temperature=0,  # deterministic JSON output
             system=_DETECTION_SYSTEM,
             messages=[{"role": "user", "content": question}],
         )
@@ -306,17 +323,19 @@ def detect_and_store_memory(
         logger.warning("detect_and_store_memory: Haiku returned empty response — skipping")
         return None
 
-    # Strip markdown fences in case Haiku wrapped the JSON (e.g. ```json\n...\n```)
-    if raw.startswith("```"):
-        lines = raw.splitlines()
-        inner_lines = lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
-        raw = "\n".join(inner_lines).strip()
-        logger.info("detect_and_store_memory: stripped markdown fences, cleaned: %r", raw[:500])
+    # Attempt 1: parse the whole response as JSON
+    # Attempt 2: strip markdown fences (```json ... ```)
+    # Attempt 3: regex-extract the first {...} block (handles surrounding prose)
+    result: dict[str, Any] | None = None
+    for candidate in _extract_json_candidates(raw):
+        try:
+            result = json.loads(candidate)
+            break
+        except json.JSONDecodeError:
+            continue
 
-    try:
-        result: dict[str, Any] = json.loads(raw)
-    except json.JSONDecodeError:
-        logger.error("detect_and_store_memory: JSON parse failed on: %r", raw[:200])
+    if result is None:
+        logger.error("detect_and_store_memory: all JSON parse attempts failed on: %r", raw[:300])
         return None
 
     logger.info("detect_and_store_memory: should_store=%s key=%r", result.get("should_store"), result.get("key"))
