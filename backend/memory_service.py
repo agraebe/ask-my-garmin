@@ -297,10 +297,26 @@ def detect_and_store_memory(
             messages=[{"role": "user", "content": question}],
         )
         raw = response.content[0].text.strip() if response.content else ""
-        logger.info("detect_and_store_memory: Haiku raw response: %s", raw)
-        result: dict[str, Any] = json.loads(raw)
+        logger.info("detect_and_store_memory: Haiku raw response (stop_reason=%s): %r", response.stop_reason, raw[:500])
     except Exception:
-        logger.exception("Memory detection failed (Haiku call or JSON parse)")
+        logger.exception("Memory detection failed (Haiku API call)")
+        return None
+
+    if not raw:
+        logger.warning("detect_and_store_memory: Haiku returned empty response — skipping")
+        return None
+
+    # Strip markdown fences in case Haiku wrapped the JSON (e.g. ```json\n...\n```)
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        inner_lines = lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+        raw = "\n".join(inner_lines).strip()
+        logger.info("detect_and_store_memory: stripped markdown fences, cleaned: %r", raw[:500])
+
+    try:
+        result: dict[str, Any] = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("detect_and_store_memory: JSON parse failed on: %r", raw[:200])
         return None
 
     logger.info("detect_and_store_memory: should_store=%s key=%r", result.get("should_store"), result.get("key"))
