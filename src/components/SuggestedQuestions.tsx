@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
 const SUGGESTIONS = [
   'Am I ready to run a sub-2-hour half marathon in 6 weeks?',
   "What's the right easy pace for me to be running?",
@@ -28,6 +32,10 @@ const RCJ_SUGGESTIONS = [
   "My physio said 6 weeks off. What's a good 6-week training block I can do instead?",
 ];
 
+// Card width + gap in px — must match the Tailwind classes below
+const CARD_W = 288; // w-72
+const GAP = 16; // gap-4
+
 interface Props {
   onSelect: (question: string) => void;
   funMode?: boolean;
@@ -47,41 +55,126 @@ function ActivityIcon() {
   );
 }
 
+function ChevronLeft() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M15 18l-6-6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M9 18l6-6-6-6"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function SuggestedQuestions({ onSelect, funMode = false }: Props) {
   const suggestions = funMode ? RCJ_SUGGESTIONS : SUGGESTIONS;
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  function updateArrows() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }
+
+  useEffect(() => {
+    updateArrows();
+  }, [suggestions]);
+
+  function scroll(dir: 'left' | 'right') {
+    scrollRef.current?.scrollBy({
+      left: dir === 'left' ? -(CARD_W + GAP) : CARD_W + GAP,
+      behavior: 'smooth',
+    });
+  }
+
+  const accentHover = funMode
+    ? 'hover:border-rcj hover:bg-garmin-surface-2'
+    : 'hover:border-garmin-blue hover:bg-garmin-surface-2';
+  const accentBg = funMode ? 'bg-rcj' : 'bg-garmin-blue';
+
   return (
-    <div className="flex flex-col items-center gap-6 px-3 py-8 sm:px-4 sm:py-12">
-      <div className="text-center">
+    <div className="flex flex-col items-center gap-10 pb-8 pt-20">
+      {/* Header */}
+      <div className="px-4 text-center">
         <div
-          className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-white sm:h-16 sm:w-16 ${funMode ? 'bg-rcj' : 'bg-garmin-blue'}`}
+          className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-white sm:h-20 sm:w-20 ${accentBg}`}
         >
           <ActivityIcon />
         </div>
-        <h2 className="text-xl font-semibold text-garmin-text">
+        <h2 className="text-2xl font-semibold text-garmin-text">
           {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
         </h2>
-        <p className="mt-1 text-sm text-garmin-text-muted">
+        <p className="mt-2 text-sm text-garmin-text-muted">
           {funMode
             ? "What does your Garmin say? (It's probably fine.)"
             : 'Get personalized training insights from your Garmin data using AI.'}
         </p>
       </div>
 
-      <div className="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
-        {suggestions.map((q) => (
-          <button
-            key={q}
-            onClick={() => onSelect(q)}
-            className={`rounded-xl border border-garmin-border bg-garmin-surface px-3 py-3 text-left text-sm text-garmin-text shadow-sm transition-colors sm:px-4 ${
-              funMode
-                ? 'hover:border-rcj hover:bg-garmin-surface-2'
-                : 'hover:border-garmin-blue hover:bg-garmin-surface-2'
-            }`}
-          >
-            {q}
-          </button>
-        ))}
+      {/* Carousel — outer wrapper centers and constrains to ~3 cards + button gutters */}
+      {/* max-w = 3 × 288 + 2 × 16 gap + 2 × 48 button gutters = 992px */}
+      <div className="relative mx-auto w-full max-w-[992px] px-12">
+        {/* Left arrow */}
+        <button
+          onClick={() => scroll('left')}
+          aria-label="Scroll left"
+          className={`absolute left-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-garmin-border bg-garmin-surface text-garmin-text-muted shadow-lg transition-all hover:border-garmin-blue hover:text-garmin-text ${
+            canScrollLeft ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <ChevronLeft />
+        </button>
+
+        {/* Scroll viewport — clips to exactly 3 cards wide on desktop */}
+        <div
+          ref={scrollRef}
+          onScroll={updateArrows}
+          className="overflow-x-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex gap-4">
+            {suggestions.map((q) => (
+              <button
+                key={q}
+                onClick={() => onSelect(q)}
+                className={`w-72 flex-shrink-0 rounded-2xl border border-garmin-border bg-garmin-surface px-5 py-5 text-left text-sm leading-relaxed text-garmin-text shadow-sm transition-colors ${accentHover}`}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right arrow */}
+        <button
+          onClick={() => scroll('right')}
+          aria-label="Scroll right"
+          className={`absolute right-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-garmin-border bg-garmin-surface text-garmin-text-muted shadow-lg transition-all hover:border-garmin-blue hover:text-garmin-text ${
+            canScrollRight ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <ChevronRight />
+        </button>
       </div>
     </div>
   );

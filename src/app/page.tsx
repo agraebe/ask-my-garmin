@@ -102,7 +102,7 @@ export default function Home() {
   return (
     <main className="flex h-dvh flex-col">
       <header className="flex-shrink-0 border-b border-garmin-border bg-garmin-surface px-4 py-3 sm:px-6 sm:py-4">
-        <div className="mx-auto flex max-w-4xl items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-white ${funMode ? 'bg-rcj' : 'bg-garmin-blue'}`}
@@ -166,7 +166,7 @@ export default function Home() {
         />
       )}
 
-      <div className="mx-auto w-full max-w-4xl flex-1 overflow-hidden">
+      <div className="w-full flex-1 overflow-hidden">
         <ChatInterface
           funMode={funMode}
           isConnected={isConnected}
