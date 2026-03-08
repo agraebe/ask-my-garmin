@@ -58,11 +58,11 @@ export function setupLoginMocks(page: Page) {
 }
 
 /** MFA login flow mock (two-step). */
-export function setupMfaMocks(page: Page) {
+export async function setupMfaMocks(page: Page) {
   let mfaStep = false;
   let loggedIn = false;
 
-  page.route('/api/auth/login', (route) => {
+  await page.route('/api/auth/login', (route) => {
     mfaStep = true;
     route.fulfill({
       status: 200,
@@ -70,7 +70,7 @@ export function setupMfaMocks(page: Page) {
     });
   });
 
-  page.route('/api/auth/mfa', (route) => {
+  await page.route('/api/auth/mfa', (route) => {
     loggedIn = true;
     mfaStep = false;
     route.fulfill({
@@ -79,7 +79,7 @@ export function setupMfaMocks(page: Page) {
     });
   });
 
-  page.route('/api/auth/status*', (route) => {
+  await page.route('/api/auth/status*', (route) => {
     if (loggedIn) {
       route.fulfill({ status: 200, json: { connected: true, email: FAKE_EMAIL } });
     } else {
