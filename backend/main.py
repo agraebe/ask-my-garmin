@@ -48,6 +48,15 @@ from models import Memory
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Log which critical env vars are present (never log their values)
+    env_checks = {
+        "ANTHROPIC_API_KEY": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+        "SESSION_SECRET": bool(os.environ.get("SESSION_SECRET", "").strip()),
+        "DATABASE_URL": bool(os.environ.get("DATABASE_URL", "").strip()),
+    }
+    for var, present in env_checks.items():
+        logger.info("Env check: %s = %s", var, "SET" if present else "NOT SET")
+    logger.info("Database available: %s", database.is_available())
     database.init_db()
     yield
 
@@ -57,9 +66,20 @@ async def lifespan(app: FastAPI):
 # Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # If unset, a random key is used — session tokens will be invalidated on server restart.
 
-_SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
+_SESSION_SECRET = os.environ.get("SESSION_SECRET", "").strip()
 if _SESSION_SECRET:
-    _fernet = Fernet(_SESSION_SECRET.encode())
+    try:
+        _fernet = Fernet(_SESSION_SECRET.encode())
+        logger.info("SESSION_SECRET loaded OK")
+    except Exception as _e:
+        logger.error("SESSION_SECRET is set but invalid (not a Fernet key): %s", _e)
+        _fernet = Fernet(Fernet.generate_key())
+        warnings.warn(
+            "SESSION_SECRET is set but is not a valid Fernet key. "
+            "Session tokens will be invalidated on every server restart. "
+            "Generate a valid key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
+            stacklevel=1,
+        )
 else:
     _fernet = Fernet(Fernet.generate_key())
     warnings.warn(

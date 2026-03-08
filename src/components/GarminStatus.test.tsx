@@ -6,12 +6,14 @@ import GarminStatus from './GarminStatus';
 const noop = () => {};
 
 describe('GarminStatus', () => {
-  it('shows a loading/connecting state when connected is null', () => {
-    render(<GarminStatus connected={null} onLoginClick={noop} onLogout={noop} />);
-    expect(screen.getByText(/connecting/i)).toBeInTheDocument();
+  it('renders nothing when connected is null (loading)', () => {
+    const { container } = render(
+      <GarminStatus connected={null} onLoginClick={noop} onLogout={noop} />
+    );
+    expect(container.firstChild).toBeNull();
   });
 
-  it('shows "Connected" with email when connected', () => {
+  it('shows only a Sign out button when connected', () => {
     render(
       <GarminStatus
         connected={true}
@@ -20,21 +22,21 @@ describe('GarminStatus', () => {
         onLogout={noop}
       />
     );
-    expect(screen.getByText('Connected')).toBeInTheDocument();
-    expect(screen.getByText('(runner@example.com)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument();
   });
 
-  it('shows "Not connected" and a Connect button when disconnected', () => {
+  it('shows only a Sign in button when disconnected', () => {
     render(<GarminStatus connected={false} onLoginClick={noop} onLogout={noop} />);
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /connect/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
   });
 
-  it('calls onLoginClick when Connect is clicked', async () => {
+  it('calls onLoginClick when Sign in is clicked', async () => {
     const user = userEvent.setup();
     const onLoginClick = vi.fn();
     render(<GarminStatus connected={false} onLoginClick={onLoginClick} onLogout={noop} />);
-    await user.click(screen.getByRole('button', { name: /connect/i }));
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
     expect(onLoginClick).toHaveBeenCalledOnce();
   });
 
@@ -53,27 +55,15 @@ describe('GarminStatus', () => {
     expect(onLogout).toHaveBeenCalledOnce();
   });
 
-  it('shows "Connected" without an email parenthetical when no email is provided', () => {
-    render(<GarminStatus connected={true} onLoginClick={noop} onLogout={noop} />);
-    expect(screen.getByText('Connected')).toBeInTheDocument();
-    // No parenthetical email element
-    expect(screen.queryByText(/\(/)).not.toBeInTheDocument();
-  });
-
-  it('sets a descriptive title attribute when connected with an email', () => {
-    const { container } = render(
+  it('sets a descriptive title on the Sign out button when email is provided', () => {
+    render(
       <GarminStatus connected={true} email="athlete@test.com" onLoginClick={noop} onLogout={noop} />
     );
-    expect(container.querySelector('[title="Connected as athlete@test.com"]')).toBeInTheDocument();
+    expect(screen.getByTitle('Signed in as athlete@test.com')).toBeInTheDocument();
   });
 
-  it('does not show a Sign out button when disconnected', () => {
-    render(<GarminStatus connected={false} onLoginClick={noop} onLogout={noop} />);
-    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
-  });
-
-  it('does not show a Connect button when connected', () => {
-    render(<GarminStatus connected={true} email="x@y.com" onLoginClick={noop} onLogout={noop} />);
-    expect(screen.queryByRole('button', { name: /connect/i })).not.toBeInTheDocument();
+  it('sets a generic title on the Sign out button when no email is provided', () => {
+    render(<GarminStatus connected={true} onLoginClick={noop} onLogout={noop} />);
+    expect(screen.getByTitle('Signed in')).toBeInTheDocument();
   });
 });

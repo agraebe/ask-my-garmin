@@ -58,9 +58,12 @@ export default function MemoryPanel({ onClose, onMemoryCountChange }: Props) {
     }
   }, [onMemoryCountChange]);
 
+  // Fetch fresh data every time the panel opens (every mount).
+  // Intentionally omit fetchMemories from deps — it's stable but we want
+  // exactly one fetch per mount, not a refetch if the callback identity changes.
   useEffect(() => {
     fetchMemories();
-  }, [fetchMemories]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startEdit(m: Memory) {
     setEditingId(m.id);
