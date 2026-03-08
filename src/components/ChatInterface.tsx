@@ -95,7 +95,7 @@ export default function ChatInterface({
       setMessages([...updatedHistory, assistantPlaceholder]);
 
       try {
-        const sessionToken = sessionStorage.getItem('garmin_session') ?? '';
+        const sessionToken = localStorage.getItem('garmin_session') ?? '';
         const response = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -110,7 +110,7 @@ export default function ChatInterface({
         // Refresh session token if the backend rotated it (e.g. OAuth refresh)
         const updatedToken = response.headers.get('X-Session-Token');
         if (updatedToken) {
-          sessionStorage.setItem('garmin_session', updatedToken);
+          localStorage.setItem('garmin_session', updatedToken);
         }
 
         if (!response.ok) {

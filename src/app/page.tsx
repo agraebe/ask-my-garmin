@@ -50,7 +50,7 @@ export default function Home() {
 
   const checkStatus = useCallback(async () => {
     try {
-      const token = sessionStorage.getItem('garmin_session') ?? '';
+      const token = localStorage.getItem('garmin_session') ?? '';
       const url = token
         ? `/api/auth/status?session_token=${encodeURIComponent(token)}`
         : '/api/auth/status';
@@ -77,14 +77,14 @@ export default function Home() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
-    sessionStorage.removeItem('garmin_session');
+    localStorage.removeItem('garmin_session');
     setAuthState('disconnected');
     setEmail('');
     setMemoryCount(0);
   }
 
   function handleLoginSuccess(token: string) {
-    sessionStorage.setItem('garmin_session', token);
+    localStorage.setItem('garmin_session', token);
     setShowLogin(false);
     setAuthState('connected'); // optimistic: login just succeeded
     checkStatus(); // background: fills in the email display

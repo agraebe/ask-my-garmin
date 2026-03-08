@@ -71,7 +71,7 @@ export default function LoginModal({ onSuccess }: Props) {
         setSessionId(data.session_id);
         setStep('mfa');
       } else {
-        sessionStorage.setItem('garmin_session', data.session_token ?? '');
+        localStorage.setItem('garmin_session', data.session_token ?? '');
         onSuccess(data.session_token ?? '');
       }
     } catch {
@@ -101,7 +101,7 @@ export default function LoginModal({ onSuccess }: Props) {
         return;
       }
 
-      sessionStorage.setItem('garmin_session', data.session_token ?? '');
+      localStorage.setItem('garmin_session', data.session_token ?? '');
       onSuccess(data.session_token ?? '');
     } catch {
       setError('Network error — is the Python backend running?');

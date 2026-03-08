@@ -15,5 +15,7 @@ afterEach(() => {
   // we call it explicitly so rendered components don't leak between tests.
   cleanup();
   server.resetHandlers();
+  localStorage.clear();
+  sessionStorage.clear();
 });
 afterAll(() => server.close());
