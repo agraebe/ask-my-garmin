@@ -16,6 +16,19 @@
 
 import { test, expect } from '@playwright/test';
 
+// Guard: BASE_URL must be set to a real production URL (not localhost).
+// If it's missing, the GitHub Actions variable VERCEL_PRODUCTION_URL is not configured.
+const BASE_URL = process.env.BASE_URL ?? '';
+const isProductionUrl = BASE_URL.startsWith('https://');
+if (!isProductionUrl) {
+  throw new Error(
+    `Production smoke tests require BASE_URL to be set to the Vercel production URL ` +
+      `(e.g. https://ask-my-garmin.vercel.app). ` +
+      `Got: "${BASE_URL || '(empty)'}". ` +
+      `Set the VERCEL_PRODUCTION_URL repository variable in GitHub Actions settings.`
+  );
+}
+
 const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
