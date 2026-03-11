@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = process.env.PORT ?? '3000';
-const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
+// Use || (not ??) so that an empty string from GitHub Actions vars also falls back to localhost.
+const rawBaseUrl = process.env.BASE_URL;
+const BASE_URL = rawBaseUrl || `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -25,7 +27,7 @@ export default defineConfig({
     },
   ],
   // Start Next.js dev server locally unless BASE_URL is provided (e.g. in CI pointing at a deployed preview)
-  webServer: process.env.BASE_URL
+  webServer: rawBaseUrl
     ? undefined
     : {
         command: 'npm run dev',

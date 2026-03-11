@@ -8,10 +8,12 @@
  *
  * Run only from the nightly CI workflow. Never during PR checks.
  *
- * Required env vars (set as GitHub Actions secrets):
+ * Required env vars:
  *   BASE_URL         — Vercel production URL  (e.g. https://ask-my-garmin.vercel.app)
- *   GARMIN_EMAIL     — Real Garmin Connect account email
- *   GARMIN_PASSWORD  — Real Garmin Connect account password
+ *                      Set as a GitHub Actions repository variable named VERCEL_PRODUCTION_URL
+ *                      (Settings → Secrets and variables → Actions → Variables)
+ *   GARMIN_EMAIL     — Real Garmin Connect account email (GitHub Actions secret)
+ *   GARMIN_PASSWORD  — Real Garmin Connect account password (GitHub Actions secret)
  */
 
 import { test, expect } from '@playwright/test';
@@ -25,6 +27,16 @@ const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 // ---------------------------------------------------------------------------
 
 test.describe('1. Infrastructure', () => {
+  test('BASE_URL is configured to a valid production HTTPS URL', () => {
+    const baseUrl = process.env.BASE_URL ?? '';
+    expect(
+      baseUrl,
+      'BASE_URL must be set to the Vercel production URL (e.g. https://ask-my-garmin.vercel.app).\n' +
+        'Add VERCEL_PRODUCTION_URL as a GitHub Actions repository variable:\n' +
+        'GitHub repo → Settings → Secrets and variables → Actions → Variables → New repository variable'
+    ).toMatch(/^https:\/\//);
+  });
+
   test('frontend loads at the production URL', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /ask my garmin/i, level: 1 })).toBeVisible({
