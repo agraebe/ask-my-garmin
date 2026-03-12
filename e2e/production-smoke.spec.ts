@@ -20,6 +20,20 @@ const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
+// Fail fast with a clear message instead of cryptic "Invalid URL" errors when
+// BASE_URL is not set (i.e. VERCEL_PRODUCTION_URL is missing from GitHub Actions
+// repository variables).
+test.beforeAll(() => {
+  const baseUrl = process.env.BASE_URL ?? '';
+  if (!baseUrl || !baseUrl.startsWith('http')) {
+    throw new Error(
+      'BASE_URL is not set to a valid URL. ' +
+        'Configure VERCEL_PRODUCTION_URL as a GitHub Actions repository variable ' +
+        '(Settings → Secrets and variables → Actions → Variables).'
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 1. Infrastructure — no credentials needed
 // ---------------------------------------------------------------------------
