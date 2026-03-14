@@ -20,11 +20,22 @@ const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
+// BASE_URL must be set to a real HTTPS URL (e.g. https://ask-my-garmin.vercel.app).
+// When unset, the env var resolves to an empty string which causes "Invalid URL" errors.
+// Set VERCEL_PRODUCTION_URL in GitHub Actions → Settings → Variables.
+const BASE_URL = process.env.BASE_URL ?? '';
+const hasValidProductionUrl = BASE_URL.startsWith('https://');
+
 // ---------------------------------------------------------------------------
 // 1. Infrastructure — no credentials needed
 // ---------------------------------------------------------------------------
 
 test.describe('1. Infrastructure', () => {
+  test.skip(
+    !hasValidProductionUrl,
+    'BASE_URL is not set to a production HTTPS URL — configure VERCEL_PRODUCTION_URL in GitHub Actions repository variables'
+  );
+
   test('frontend loads at the production URL', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /ask my garmin/i, level: 1 })).toBeVisible({
