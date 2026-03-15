@@ -21,6 +21,22 @@ const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
 // ---------------------------------------------------------------------------
+// 0. Pre-flight — ensure BASE_URL is configured when running in CI
+// ---------------------------------------------------------------------------
+
+test.describe('0. Pre-flight', () => {
+  test('BASE_URL is configured (set VERCEL_PRODUCTION_URL in GitHub Actions variables)', () => {
+    if (process.env.CI) {
+      expect(
+        process.env.BASE_URL,
+        'VERCEL_PRODUCTION_URL must be set as a GitHub Actions repository variable. ' +
+          'Go to Settings → Secrets and variables → Actions → Variables and add VERCEL_PRODUCTION_URL.'
+      ).toBeTruthy();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 1. Infrastructure — no credentials needed
 // ---------------------------------------------------------------------------
 
