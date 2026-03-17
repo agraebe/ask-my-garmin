@@ -1,7 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = process.env.PORT ?? '3000';
-const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
+// Use || (not ??) so an empty string (e.g. unset GitHub Actions var) falls back to localhost.
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+// In CI, BASE_URL must be explicitly set to a real deployment URL.
+// If it's missing the tests will hit localhost (nothing running) and fail with
+// confusing "Invalid URL" or connection-refused errors.
+if (process.env.CI && !process.env.BASE_URL) {
+  throw new Error(
+    'BASE_URL is not set. In CI, set the VERCEL_PRODUCTION_URL GitHub Actions repository variable ' +
+      '(GitHub → Settings → Secrets and variables → Actions → Variables).'
+  );
+}
 
 export default defineConfig({
   testDir: './e2e',
