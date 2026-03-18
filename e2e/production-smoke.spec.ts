@@ -20,6 +20,10 @@ const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
+// Use a deterministic phrase so we can assert on the assistant response text.
+// (Claude output can include punctuation/whitespace, so assertions use regex.)
+const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
+
 // ---------------------------------------------------------------------------
 // 1. Infrastructure — no credentials needed
 // ---------------------------------------------------------------------------
@@ -55,70 +59,56 @@ test.describe('1. Infrastructure', () => {
 
 // ---------------------------------------------------------------------------
 // 2. Authentication → Garmin data → Claude chat (API-level)
-//    Tests run serially so later tests can reuse the session token.
 // ---------------------------------------------------------------------------
 
-test.describe.serial('2. Auth + Data + Chat (API)', () => {
+test.describe('2. Auth + Data + Chat (API)', () => {
   test.skip(!hasCredentials, 'Set GARMIN_EMAIL and GARMIN_PASSWORD to run production smoke tests');
 
-  // Shared across serial tests in this describe block
-  let sessionToken = '';
-
-  test('logs in with real Garmin credentials', async ({ request }) => {
-    const res = await request.post('/api/auth/login', {
+  test('end-to-end API smoke chain works (login -> status -> memories -> ask)', async ({
+    request,
+  }) => {
+    const loginRes = await request.post('/api/auth/login', {
       data: { email: GARMIN_EMAIL, password: GARMIN_PASSWORD },
       timeout: 30_000,
     });
 
-    const body = await res.json();
+    const loginBody = await loginRes.json();
 
-    if (body.status === 'mfa_required') {
+    if (loginBody.status === 'mfa_required') {
       throw new Error(
         'Garmin account requires MFA — use a non-MFA account for CI (set GARMIN_EMAIL / GARMIN_PASSWORD to a non-MFA Garmin account)'
       );
     }
 
-    expect(res.ok()).toBe(true);
-    expect(body.status).toBe('ok');
-    expect(typeof body.session_token).toBe('string');
-    expect(body.session_token.length).toBeGreaterThan(10);
+    expect(loginRes.ok()).toBe(true);
+    expect(loginBody.status).toBe('ok');
+    expect(typeof loginBody.session_token).toBe('string');
+    expect(loginBody.session_token.length).toBeGreaterThan(10);
 
-    sessionToken = body.session_token;
-  });
+    const sessionToken = loginBody.session_token as string;
 
-  test('session token validates: status returns connected=true with email', async ({ request }) => {
-    expect(sessionToken, 'Requires successful login test').toBeTruthy();
-
-    const res = await request.get(
+    const statusRes = await request.get(
       `/api/auth/status?session_token=${encodeURIComponent(sessionToken)}`
     );
-    expect(res.ok()).toBe(true);
-    const body = await res.json();
-    expect(body.connected).toBe(true);
-    expect(body.email).toBe(GARMIN_EMAIL);
-  });
+    expect(statusRes.ok()).toBe(true);
+    const statusBody = await statusRes.json();
+    expect(statusBody.connected).toBe(true);
+    expect(statusBody.email).toBe(GARMIN_EMAIL);
 
-  test('memories endpoint returns 200 — database is connected', async ({ request }) => {
-    expect(sessionToken, 'Requires successful login test').toBeTruthy();
-
-    const res = await request.get('/api/memories', {
+    const memoriesRes = await request.get('/api/memories', {
       headers: { Authorization: `Bearer ${sessionToken}` },
     });
 
     // 200 = DB connected
     // 503 = DB down — this is the exact bug we're guarding against
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body).toHaveProperty('memories');
-    expect(Array.isArray(body.memories)).toBe(true);
-  });
+    expect(memoriesRes.status()).toBe(200);
+    const memoriesBody = await memoriesRes.json();
+    expect(memoriesBody).toHaveProperty('memories');
+    expect(Array.isArray(memoriesBody.memories)).toBe(true);
 
-  test('real question returns a non-empty Claude response', async ({ request }) => {
-    expect(sessionToken, 'Requires successful login test').toBeTruthy();
-
-    const res = await request.post('/api/ask', {
+    const askRes = await request.post('/api/ask', {
       data: {
-        question: 'Reply with exactly three words: SMOKE TEST PASSED',
+        question: SMOKE_QUESTION,
         history: [],
         session_token: sessionToken,
         fun_mode: false,
@@ -126,10 +116,15 @@ test.describe.serial('2. Auth + Data + Chat (API)', () => {
       timeout: 90_000,
     });
 
-    expect(res.ok()).toBe(true);
-    const text = await res.text();
-    expect(text.trim().length, 'Claude response must not be empty').toBeGreaterThan(0);
+    expect(askRes.ok()).toBe(true);
+    const text = await askRes.text();
+    const trimmed = text.trim();
+    expect(trimmed.length, 'Claude response must not be empty').toBeGreaterThan(0);
     expect(text, 'Response must not be an error').not.toMatch(/^Error:/i);
+    // Keep it resilient to punctuation/whitespace variations.
+    expect(trimmed).toMatch(/SMOKE/i);
+    expect(trimmed).toMatch(/TEST/i);
+    expect(trimmed).toMatch(/PASSED/i);
   });
 });
 
@@ -146,9 +141,7 @@ test.describe('3. Full UI flow', () => {
     await page.goto('/');
 
     // Type a question — the app intercepts it and shows the login modal
-    await page
-      .getByPlaceholder(/ask about your activities/i)
-      .fill('How many activities did I log this week?');
+    await page.getByPlaceholder(/ask about your activities/i).fill(SMOKE_QUESTION);
     await page.getByRole('button', { name: /send/i }).click();
 
     // Login modal must appear
@@ -165,12 +158,13 @@ test.describe('3. Full UI flow', () => {
     });
 
     // The question is auto-sent; wait for Claude's response to stream in.
-    // We check that the last `.whitespace-pre-wrap` element (the response bubble)
-    // has non-empty content and does not start with "Error:".
-    const lastBubble = page.locator('.whitespace-pre-wrap').last();
-    await expect(lastBubble).not.toBeEmpty({ timeout: 90_000 });
+    // The assistant bubble uses `bg-garmin-surface` (user bubbles use `bg-garmin-blue`).
+    const assistantBubble = page.locator('div.bg-garmin-surface').last();
+    await expect(assistantBubble).toContainText(/SMOKE/i, { timeout: 90_000 });
+    await expect(assistantBubble).toContainText(/TEST/i, { timeout: 90_000 });
+    await expect(assistantBubble).toContainText(/PASSED/i, { timeout: 90_000 });
 
-    const responseText = await lastBubble.textContent();
+    const responseText = await assistantBubble.textContent();
     expect(responseText, 'Response must not be an error').not.toMatch(/^Error:/i);
   });
 });
