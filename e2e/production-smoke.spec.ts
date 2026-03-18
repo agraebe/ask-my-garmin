@@ -16,6 +16,18 @@
 
 import { test, expect } from '@playwright/test';
 
+// Fail fast with a clear, actionable error when BASE_URL is not configured,
+// instead of letting every test fail with a cryptic "Invalid URL" message.
+if (!process.env.BASE_URL) {
+  throw new Error(
+    'BASE_URL is not set — production smoke tests cannot run.\n' +
+      'Fix: add VERCEL_PRODUCTION_URL as a repository Actions variable:\n' +
+      '  GitHub → Settings → Secrets and variables → Actions → Variables tab → New repository variable\n' +
+      '  Name:  VERCEL_PRODUCTION_URL\n' +
+      '  Value: https://<your-app>.vercel.app'
+  );
+}
+
 const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
