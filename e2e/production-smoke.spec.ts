@@ -16,6 +16,18 @@
 
 import { test, expect } from '@playwright/test';
 
+// Fail fast with a clear message if the production URL is not configured.
+// An empty BASE_URL (e.g. when vars.VERCEL_PRODUCTION_URL is unset in GitHub Actions)
+// would otherwise cause every test to fail with the cryptic "Cannot navigate to invalid URL".
+const BASE_URL = process.env.BASE_URL ?? '';
+if (!BASE_URL || BASE_URL.startsWith('http://localhost')) {
+  throw new Error(
+    'production-smoke.spec.ts requires BASE_URL to be set to the live Vercel deployment URL ' +
+      '(e.g. https://ask-my-garmin.vercel.app). ' +
+      'Set the VERCEL_PRODUCTION_URL repository variable in GitHub Actions settings.'
+  );
+}
+
 const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
