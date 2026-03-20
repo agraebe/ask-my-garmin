@@ -19,6 +19,7 @@ import { test, expect } from '@playwright/test';
 const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
+const hasProductionUrl = (process.env.BASE_URL ?? '').startsWith('https://');
 
 // Use a deterministic phrase so we can assert on the assistant response text.
 // (Claude output can include punctuation/whitespace, so assertions use regex.)
@@ -29,6 +30,11 @@ const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
 // ---------------------------------------------------------------------------
 
 test.describe('1. Infrastructure', () => {
+  test.skip(
+    !hasProductionUrl,
+    'Set BASE_URL to the Vercel production URL (e.g. https://ask-my-garmin.vercel.app) to run smoke tests'
+  );
+
   test('frontend loads at the production URL', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /ask my garmin/i, level: 1 })).toBeVisible({
