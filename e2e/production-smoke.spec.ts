@@ -20,6 +20,19 @@ const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
+// Validate that BASE_URL is set to a real remote URL (not localhost, not empty).
+// An empty string from an unset GitHub Actions variable causes "Invalid URL" errors
+// because the nullish-coalescing fallback in playwright.config.ts won't catch "".
+const configuredBaseUrl = process.env.BASE_URL ?? '';
+const hasValidBaseUrl = (() => {
+  try {
+    const u = new URL(configuredBaseUrl);
+    return (u.protocol === 'https:' || u.protocol === 'http:') && u.hostname !== 'localhost';
+  } catch {
+    return false;
+  }
+})();
+
 // Use a deterministic phrase so we can assert on the assistant response text.
 // (Claude output can include punctuation/whitespace, so assertions use regex.)
 const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
@@ -29,6 +42,16 @@ const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
 // ---------------------------------------------------------------------------
 
 test.describe('1. Infrastructure', () => {
+  test.beforeEach(() => {
+    // Fail fast with a clear message if BASE_URL is not set to a real production URL.
+    // Set the VERCEL_PRODUCTION_URL repository variable in GitHub Actions settings.
+    test.skip(
+      !hasValidBaseUrl,
+      `BASE_URL is not a valid remote URL (got: "${configuredBaseUrl}"). ` +
+        'Set the VERCEL_PRODUCTION_URL repository variable in GitHub Actions → Settings → Variables.'
+    );
+  });
+
   test('frontend loads at the production URL', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /ask my garmin/i, level: 1 })).toBeVisible({
