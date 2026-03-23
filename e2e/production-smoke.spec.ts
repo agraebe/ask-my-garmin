@@ -20,6 +20,13 @@ const GARMIN_EMAIL = process.env.GARMIN_EMAIL ?? '';
 const GARMIN_PASSWORD = process.env.GARMIN_PASSWORD ?? '';
 const hasCredentials = !!(GARMIN_EMAIL && GARMIN_PASSWORD);
 
+// Guard: all production smoke tests require a real https:// BASE_URL.
+// When VERCEL_PRODUCTION_URL is not configured the env var arrives as an empty
+// string, which would cause "Invalid URL" failures that look like production
+// outages but are really a CI configuration gap.
+const BASE_URL_ENV = process.env.BASE_URL ?? '';
+const isProductionRun = BASE_URL_ENV.startsWith('https://');
+
 // Use a deterministic phrase so we can assert on the assistant response text.
 // (Claude output can include punctuation/whitespace, so assertions use regex.)
 const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
@@ -29,6 +36,11 @@ const SMOKE_QUESTION = 'Reply with exactly three words: SMOKE TEST PASSED';
 // ---------------------------------------------------------------------------
 
 test.describe('1. Infrastructure', () => {
+  test.skip(
+    !isProductionRun,
+    'BASE_URL must be an https:// URL — set the VERCEL_PRODUCTION_URL repository variable to run production smoke tests'
+  );
+
   test('frontend loads at the production URL', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /ask my garmin/i, level: 1 })).toBeVisible({
@@ -62,6 +74,10 @@ test.describe('1. Infrastructure', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('2. Auth + Data + Chat (API)', () => {
+  test.skip(
+    !isProductionRun,
+    'BASE_URL must be an https:// URL — set the VERCEL_PRODUCTION_URL repository variable to run production smoke tests'
+  );
   test.skip(!hasCredentials, 'Set GARMIN_EMAIL and GARMIN_PASSWORD to run production smoke tests');
 
   test('end-to-end API smoke chain works (login -> status -> memories -> ask)', async ({
@@ -133,6 +149,10 @@ test.describe('2. Auth + Data + Chat (API)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('3. Full UI flow', () => {
+  test.skip(
+    !isProductionRun,
+    'BASE_URL must be an https:// URL — set the VERCEL_PRODUCTION_URL repository variable to run production smoke tests'
+  );
   test.skip(!hasCredentials, 'Set GARMIN_EMAIL and GARMIN_PASSWORD to run production smoke tests');
 
   test('login via UI and receive a real assistant response', async ({ page }) => {
