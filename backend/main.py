@@ -294,12 +294,38 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
 
         builtins.input = _mfa_input
         try:
-            per_session_client.login(body.email, body.password)
-            session["token_json"] = _serialize_garth_client(per_session_client)
-            session["success"] = True
-            logger.info("login success for %s", body.email)
+            _RETRY_DELAYS = [2, 5]  # seconds between attempts; 3 attempts total
+            last_exc: Exception | None = None
+            for attempt, delay in enumerate([0] + _RETRY_DELAYS):
+                if delay:
+                    logger.warning(
+                        "login attempt %d for %s — Garmin SSO rate-limited, retrying in %ds",
+                        attempt + 1,
+                        body.email,
+                        delay,
+                    )
+                    time.sleep(delay)
+                try:
+                    per_session_client.login(body.email, body.password)
+                    session["token_json"] = _serialize_garth_client(per_session_client)
+                    session["success"] = True
+                    logger.info("login success for %s (attempt %d)", body.email, attempt + 1)
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    if "429" not in str(exc):
+                        raise  # not a rate-limit error — fail immediately
+            else:
+                raise last_exc  # type: ignore[misc]
         except Exception as exc:
-            session["error"] = str(exc)
+            err = str(exc)
+            if "429" in err:
+                session["error"] = (
+                    "Garmin is temporarily blocking logins from this server. "
+                    "Please wait a minute and try again."
+                )
+            else:
+                session["error"] = err
             logger.error(
                 "login failed for %s — %s: %s",
                 body.email,
@@ -314,7 +340,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
     thread.start()
 
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, _wait_first, mfa_needed, login_done, 15)
+    result = await loop.run_in_executor(None, _wait_first, mfa_needed, login_done, 30)
 
     if result == "mfa":
         return {"status": "mfa_required", "session_id": session_id}
