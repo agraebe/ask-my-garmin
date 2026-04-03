@@ -258,7 +258,6 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         request.headers.get("X-Real-IP") or
         (request.client.host if request.client else "unknown")
     )
-    logger.info("login attempt for %s from ip=%s (X-Forwarded-For: %s)", body.email, ip, forwarded_for)
     _check_rate_limit(ip)
 
     session_id = str(uuid.uuid4())
@@ -294,44 +293,11 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
 
         builtins.input = _mfa_input
         try:
-            _RETRY_DELAYS = [2, 5]  # seconds between attempts; 3 attempts total
-            last_exc: Exception | None = None
-            for attempt, delay in enumerate([0] + _RETRY_DELAYS):
-                if delay:
-                    logger.warning(
-                        "login attempt %d for %s — Garmin SSO rate-limited, retrying in %ds",
-                        attempt + 1,
-                        body.email,
-                        delay,
-                    )
-                    time.sleep(delay)
-                try:
-                    per_session_client.login(body.email, body.password)
-                    session["token_json"] = _serialize_garth_client(per_session_client)
-                    session["success"] = True
-                    logger.info("login success for %s (attempt %d)", body.email, attempt + 1)
-                    break
-                except Exception as exc:
-                    last_exc = exc
-                    if "429" not in str(exc):
-                        raise  # not a rate-limit error — fail immediately
-            else:
-                raise last_exc  # type: ignore[misc]
+            per_session_client.login(body.email, body.password)
+            session["token_json"] = _serialize_garth_client(per_session_client)
+            session["success"] = True
         except Exception as exc:
-            err = str(exc)
-            if "429" in err:
-                session["error"] = (
-                    "Garmin is temporarily blocking logins from this server. "
-                    "Please wait a minute and try again."
-                )
-            else:
-                session["error"] = err
-            logger.error(
-                "login failed for %s — %s: %s",
-                body.email,
-                type(exc).__name__,
-                exc,
-            )
+            session["error"] = str(exc)
         finally:
             builtins.input = _original_input
             login_done.set()
@@ -340,18 +306,12 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
     thread.start()
 
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, _wait_first, mfa_needed, login_done, 30)
+    result = await loop.run_in_executor(None, _wait_first, mfa_needed, login_done, 15)
 
     if result == "mfa":
         return {"status": "mfa_required", "session_id": session_id}
 
     _login_sessions.pop(session_id, None)
-
-    if not login_done.is_set():
-        # _wait_first fell through its timeout — login thread is still running
-        logger.error("login timed out for %s (no response from Garmin in 15s)", body.email)
-        raise HTTPException(status_code=504, detail="Login timed out — Garmin did not respond")
-
     if session["success"] and session["token_json"]:
         return {
             "status": "ok",
