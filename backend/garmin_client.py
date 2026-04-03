@@ -1,16 +1,14 @@
 """
-Garmin Connect data fetching via garth.
+Garmin Connect data fetching.
 
-All functions accept a garth.Client instance so each user's session is
-isolated — no shared global state.
+All functions accept a garminconnect Client instance so each user's session
+is isolated — no shared global state.
 """
 
 import logging
 from datetime import date, timedelta
 from typing import Any
 from urllib.parse import quote
-
-import garth
 
 logger = logging.getLogger("ask-my-garmin.garmin_client")
 
@@ -23,11 +21,11 @@ def _date_str(days_ago: int) -> str:
     return (date.today() - timedelta(days=days_ago)).isoformat()
 
 
-def get_profile(client: garth.Client) -> dict[str, Any]:
+def get_profile(client: Any) -> dict[str, Any]:
     return client.connectapi("/userprofile-service/userprofile/personal-information")
 
 
-def get_recent_activities(client: garth.Client, limit: int = 200, page_size: int = 100) -> list[dict[str, Any]]:
+def get_recent_activities(client: Any, limit: int = 200, page_size: int = 100) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     start = 0
     while len(results) < limit:
@@ -44,31 +42,31 @@ def get_recent_activities(client: garth.Client, limit: int = 200, page_size: int
     return results
 
 
-def get_daily_summary(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
+def get_daily_summary(client: Any, display_name: str, date_str: str) -> dict[str, Any]:
     return client.connectapi(
         f"/usersummary-service/usersummary/daily/{quote(display_name, safe='')}",
         params={"calendarDate": date_str},
     )
 
 
-def get_training_status(client: garth.Client, date_str: str) -> dict[str, Any]:
+def get_training_status(client: Any, date_str: str) -> dict[str, Any]:
     return client.connectapi(
         f"/metrics-service/metrics/trainingstatus/aggregated/{date_str}"
     )
 
 
-def get_sleep_data(client: garth.Client, display_name: str, date_str: str) -> dict[str, Any]:
+def get_sleep_data(client: Any, display_name: str, date_str: str) -> dict[str, Any]:
     return client.connectapi(
         f"/wellness-service/wellness/dailySleepData/{quote(display_name, safe='')}",
         params={"date": date_str},
     )
 
 
-def get_user_settings(client: garth.Client) -> dict[str, Any]:
+def get_user_settings(client: Any) -> dict[str, Any]:
     return client.connectapi("/userprofile-service/userprofile/user-settings")
 
 
-def get_all_data(client: garth.Client) -> dict[str, Any]:
+def get_all_data(client: Any) -> dict[str, Any]:
     """
     Fetch all Garmin data used to build the Claude system prompt.
     Each fetch is independent — failures return an error object rather than

@@ -1,7 +1,7 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
-garminconnect
-garth>=0.4.46
+garminconnect>=0.3.0
+curl_cffi>=0.6
 anthropic>=0.39.0
 cryptography>=42.0.0
 pytest>=8.0.0

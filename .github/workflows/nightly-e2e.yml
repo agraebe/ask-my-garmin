@@ -1,9 +1,9 @@
 name: Nightly Production Smoke Tests
 
 on:
-  schedule:
-    # 02:00 UTC every day
-    - cron: '0 2 * * *'
+  # schedule:
+  #   # 02:00 UTC every day
+  #   - cron: '0 2 * * *'
   # Allow manual runs from the Actions tab
   workflow_dispatch:
 

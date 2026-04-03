@@ -31,9 +31,9 @@ logging.basicConfig(
 logger = logging.getLogger("ask-my-garmin")
 
 import anthropic
-import garth
 from cryptography.fernet import Fernet
 from garminconnect import Garmin
+from garminconnect.client import Client as GarminClient
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -98,81 +98,21 @@ def _decrypt_tokens(blob: str) -> str:
     return _fernet.decrypt(blob.encode()).decode()
 
 
-def _serialize_garth_client(client: garth.Client) -> str:
-    """Serialize garth client OAuth tokens to a JSON string (no filesystem I/O).
+def _serialize_client(client: GarminClient) -> str:
+    """Serialize a garminconnect Client to a JSON string (no filesystem I/O)."""
+    return client.dumps()
 
-    Uses garth.Client.dumps() which base64-encodes both tokens into a single
-    string.  We wrap it in a JSON envelope so the format is explicit and
-    extensible.  The envelope key is "dumps_b64" to distinguish it from the
-    legacy file-based format (keys "oauth1_token.json" / "oauth2_token.json").
+
+def _deserialize_client(token_json: str) -> GarminClient:
+    """Restore a garminconnect Client from a JSON string (no filesystem I/O).
+
+    Raises ValueError if the token data cannot be parsed or is not authenticated.
     """
-    blob = client.dumps()
-    return json.dumps({"dumps_b64": blob})
-
-
-def _deserialize_garth_client(token_json: str) -> garth.Client:
-    """Restore a garth client from a serialized token JSON string (no filesystem I/O).
-
-    Handles two formats for backward compatibility:
-      - New format (v2): {"dumps_b64": "<base64 string from client.dumps()>"}
-      - Legacy format (v1): {"oauth1_token.json": "<json>", "oauth2_token.json": "<json>"}
-        Keys may also appear without the ".json" suffix.
-
-    Raises ValueError if the token data cannot be parsed or if token classes
-    cannot be located — callers must handle this and return an appropriate
-    HTTP error rather than silently swallowing it.
-    """
+    client = GarminClient()
     try:
-        envelope = json.loads(token_json)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Session token is not valid JSON: {exc}") from exc
-
-    client = garth.Client()
-
-    # ── New format: garth.Client.dumps() blob ────────────────────────────────
-    if "dumps_b64" in envelope:
-        try:
-            client.loads(envelope["dumps_b64"])
-        except Exception as exc:
-            logger.error("Failed to load garth client from dumps_b64: %s", exc, exc_info=True)
-            raise ValueError(f"Could not restore garth client from session token: {exc}") from exc
-        return client
-
-    # ── Legacy format: per-file JSON stored under .json-suffixed keys ────────
-    # Strip ".json" suffix from keys to normalise both v1a ("oauth1_token.json")
-    # and v1b ("oauth1_token") variants produced by older server versions.
-    normalised: dict[str, str] = {
-        (k[: -len(".json")] if k.endswith(".json") else k): v for k, v in envelope.items()
-    }
-
-    try:
-        from garth.auth_tokens import OAuth1Token, OAuth2Token
-    except ImportError as exc:
-        logger.error("Cannot import garth token classes for legacy deserialization: %s", exc)
-        raise ValueError(f"garth token classes not importable: {exc}") from exc
-
-    import dataclasses
-
-    for attr, cls, key in (
-        ("oauth1_token", OAuth1Token, "oauth1_token"),
-        ("oauth2_token", OAuth2Token, "oauth2_token"),
-    ):
-        raw = normalised.get(key)
-        if raw is None:
-            logger.warning("Legacy session token missing key %r", key)
-            continue
-        try:
-            data = json.loads(raw) if isinstance(raw, str) else raw
-            # OAuth1Token has a datetime field; strip unknown keys defensively.
-            field_names = {f.name for f in dataclasses.fields(cls)}
-            filtered = {k: v for k, v in data.items() if k in field_names}
-            setattr(client, attr, cls(**filtered))
-        except Exception as exc:
-            logger.error(
-                "Failed to reconstruct %s from legacy token data: %s", attr, exc, exc_info=True
-            )
-            raise ValueError(f"Could not reconstruct {attr}: {exc}") from exc
-
+        client.loads(token_json)
+    except Exception as exc:
+        raise ValueError(f"Could not restore client from session token: {exc}") from exc
     return client
 
 
@@ -287,7 +227,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         try:
             garmin = Garmin(body.email, body.password, prompt_mfa=_prompt_mfa)
             garmin.login()  # no tokenstore — keeps tokens in memory only
-            session["token_json"] = _serialize_garth_client(garmin.client)
+            session["token_json"] = _serialize_client(garmin.client)
             session["success"] = True
         except Exception as exc:
             session["error"] = str(exc)
@@ -349,7 +289,7 @@ async def auth_status(session_token: str | None = None) -> dict[str, Any]:
     # --- Step 1: validate token (fast, no network) ---
     try:
         token_json = _decrypt_tokens(session_token)
-        client = _deserialize_garth_client(token_json)
+        client = _deserialize_client(token_json)
     except Exception:
         return {"connected": False}
 
@@ -411,10 +351,10 @@ def _get_token_from_authorization(authorization: str | None) -> str:
     return authorization[len("Bearer "):]
 
 
-def _get_client_from_token(session_token: str) -> garth.Client:
+def _get_client_from_token(session_token: str) -> GarminClient:
     try:
         token_json = _decrypt_tokens(session_token)
-        return _deserialize_garth_client(token_json)
+        return _deserialize_client(token_json)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
 
@@ -513,7 +453,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
 
     try:
         token_json = _decrypt_tokens(body.session_token)
-        ephemeral_client = _deserialize_garth_client(token_json)
+        ephemeral_client = _deserialize_client(token_json)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
 
@@ -547,7 +487,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
 
     # Re-serialize the client in case OAuth tokens were refreshed during data fetch
     try:
-        updated_session_token = _encrypt_tokens(_serialize_garth_client(ephemeral_client))
+        updated_session_token = _encrypt_tokens(_serialize_client(ephemeral_client))
     except Exception:
         updated_session_token = body.session_token  # fall back to original
 
