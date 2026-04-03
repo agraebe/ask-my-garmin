@@ -258,6 +258,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         request.headers.get("X-Real-IP") or
         (request.client.host if request.client else "unknown")
     )
+    logger.info("login attempt for %s from ip=%s (X-Forwarded-For: %s)", body.email, ip, forwarded_for)
     _check_rate_limit(ip)
 
     session_id = str(uuid.uuid4())
@@ -296,8 +297,15 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
             per_session_client.login(body.email, body.password)
             session["token_json"] = _serialize_garth_client(per_session_client)
             session["success"] = True
+            logger.info("login success for %s", body.email)
         except Exception as exc:
             session["error"] = str(exc)
+            logger.error(
+                "login failed for %s — %s: %s",
+                body.email,
+                type(exc).__name__,
+                exc,
+            )
         finally:
             builtins.input = _original_input
             login_done.set()
@@ -312,6 +320,12 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         return {"status": "mfa_required", "session_id": session_id}
 
     _login_sessions.pop(session_id, None)
+
+    if not login_done.is_set():
+        # _wait_first fell through its timeout — login thread is still running
+        logger.error("login timed out for %s (no response from Garmin in 15s)", body.email)
+        raise HTTPException(status_code=504, detail="Login timed out — Garmin did not respond")
+
     if session["success"] and session["token_json"]:
         return {
             "status": "ok",
