@@ -521,7 +521,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
         try:
             with claude.messages.stream(
                 model="claude-sonnet-4-6",
-                max_tokens=512,
+                max_tokens=4096,
                 system=system_prompt,
                 messages=messages,
             ) as stream:
