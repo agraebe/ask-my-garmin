@@ -90,16 +90,42 @@ class TestGetUserIdHashDiTokenFallback:
         assert get_user_id_hash(client_a) != get_user_id_hash(client_b)
 
 
+class TestGetUserIdHashAlternateProfileEndpoint:
+    def test_falls_back_to_userprofile_endpoint(self):
+        """If personal-information has no userId, try /userprofile."""
+        client = _make_client()
+        client.connectapi = MagicMock(side_effect=[
+            {"displayName": "runner"},  # personal-information — no userId
+            {"userId": 55555555},       # /userprofile — has userId
+        ])
+
+        result = get_user_id_hash(client)
+
+        assert result == _sha256("55555555")
+
+
+class TestGetUserIdHashOpaqueTokenFallback:
+    def test_hashes_di_token_directly_when_not_a_jwt(self):
+        """Opaque di_token (no dots) should be hashed directly as last resort."""
+        opaque = "opaque_di_token_no_dots"
+        client = _make_client(di_token=opaque)
+        client.connectapi = MagicMock(side_effect=Exception("API error"))
+
+        result = get_user_id_hash(client)
+
+        assert result == _sha256(opaque)
+
+    def test_opaque_token_hash_is_stable(self):
+        opaque = "stable_opaque_token"
+        client = _make_client(di_token=opaque)
+        client.connectapi = MagicMock(side_effect=Exception("API error"))
+
+        assert get_user_id_hash(client) == get_user_id_hash(client)
+
+
 class TestGetUserIdHashErrors:
     def test_raises_when_all_sources_fail(self):
         client = _make_client(di_token=None)
-        client.connectapi = MagicMock(side_effect=Exception("API error"))
-
-        with pytest.raises(ValueError, match="Could not derive user identity"):
-            get_user_id_hash(client)
-
-    def test_raises_when_di_token_is_not_a_jwt(self):
-        client = _make_client(di_token="not-a-jwt")
         client.connectapi = MagicMock(side_effect=Exception("API error"))
 
         with pytest.raises(ValueError, match="Could not derive user identity"):

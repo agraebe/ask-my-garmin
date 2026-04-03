@@ -75,35 +75,51 @@ def _jwt_sub(access_token: str) -> str:
 
 
 def get_user_id_hash(client: Any) -> str:
-    """Return SHA-256 of the Garmin user's numeric user ID.
+    """Return SHA-256 of the Garmin user's stable identity.
 
-    Tries multiple sources in order so memory operations stay available even
-    when the Garmin API is flaky:
-      1. Garmin profile API (network call, returns stable numeric userId)
-      2. JWT sub claim from di_token (no network, only works if di_token is a JWT)
+    Tries multiple sources in order:
+      1. /personal-information endpoint → userId field
+      2. /userprofile endpoint → userId field (garminconnect 0.3.0 may use this)
+      3. JWT sub claim from di_token (only if di_token is a JWT)
+      4. di_token itself as an opaque stable identifier (last resort)
     """
-    # Primary: Garmin profile API
+    # 1. Primary: personal-information endpoint
     try:
         profile = client.connectapi("/userprofile-service/userprofile/personal-information")
         user_id = str((profile or {}).get("userId", ""))
         if user_id:
             return hashlib.sha256(user_id.encode()).hexdigest()
-        logger.warning("Garmin profile returned no userId; trying di_token JWT sub")
+        logger.warning("personal-information returned no userId; trying /userprofile")
     except Exception as exc:
-        logger.warning("Profile API failed, trying di_token JWT sub: %s", exc)
+        logger.warning("personal-information API failed: %s", exc)
 
-    # Fallback: JWT sub claim from di_token (no network call)
+    # 2. Alternate profile endpoint
     try:
-        di_token = getattr(client, "di_token", None)
-        if di_token:
+        profile2 = client.connectapi("/userprofile-service/userprofile")
+        user_id = str((profile2 or {}).get("userId", ""))
+        if user_id:
+            return hashlib.sha256(user_id.encode()).hexdigest()
+        logger.warning("/userprofile returned no userId; trying di_token")
+    except Exception as exc:
+        logger.warning("/userprofile API failed: %s", exc)
+
+    di_token = getattr(client, "di_token", None) or ""
+
+    # 3. JWT sub from di_token
+    if di_token:
+        try:
             sub = _jwt_sub(di_token)
             return hashlib.sha256(sub.encode()).hexdigest()
-        logger.warning("di_token fallback: no di_token found on client")
-    except Exception as exc:
-        logger.warning("di_token JWT sub fallback failed: %s", exc)
+        except Exception as exc:
+            logger.warning("di_token JWT sub fallback failed: %s", exc)
+
+    # 4. Hash di_token directly as an opaque identifier
+    if di_token:
+        logger.warning("Using raw di_token as identity (opaque — memory may reset on re-login)")
+        return hashlib.sha256(di_token.encode()).hexdigest()
 
     raise ValueError(
-        "Could not derive user identity from profile API or di_token JWT"
+        "Could not derive user identity from profile API or di_token"
     )
 
 
