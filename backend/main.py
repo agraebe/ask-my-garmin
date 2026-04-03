@@ -2,7 +2,7 @@
 Ask My Garmin — FastAPI backend.
 
 Handles:
-  - Garmin auth via garth (email/password + optional MFA/2FA)
+  - Garmin auth via garminconnect (email/password + optional MFA/2FA)
   - Per-user encrypted session tokens (no shared global state on disk)
   - Garmin data fetching
   - Claude AI streaming responses
@@ -33,6 +33,7 @@ logger = logging.getLogger("ask-my-garmin")
 import anthropic
 import garth
 from cryptography.fernet import Fernet
+from garminconnect import Garmin
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -246,7 +247,7 @@ class MemoryUpdateRequest(BaseModel):
 @app.post("/api/auth/login")
 async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
     """
-    Initiate Garmin login. Creates a per-session garth client so multiple
+    Initiate Garmin login. Creates a per-session Garmin client so multiple
     users can log in concurrently without sharing global state.
 
     Returns:
@@ -278,28 +279,19 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
     _login_sessions[session_id] = session
 
     def do_login() -> None:
-        import builtins
-
-        # Create an isolated garth client for this login session.
-        per_session_client = garth.Client()
-
-        # garth calls builtins.input() when Garmin requires a 2FA code.
-        _original_input = builtins.input
-
-        def _mfa_input(_text: str = "") -> str:
+        def _prompt_mfa() -> str:
             mfa_needed.set()
-            mfa_provided.wait(timeout=300)  # wait up to 5 min
+            mfa_provided.wait(timeout=300)  # wait up to 5 min for user to enter code
             return session["mfa_code"] or ""
 
-        builtins.input = _mfa_input
         try:
-            per_session_client.login(body.email, body.password)
-            session["token_json"] = _serialize_garth_client(per_session_client)
+            garmin = Garmin(body.email, body.password, prompt_mfa=_prompt_mfa)
+            garmin.login()  # no tokenstore — keeps tokens in memory only
+            session["token_json"] = _serialize_garth_client(garmin.garth)
             session["success"] = True
         except Exception as exc:
             session["error"] = str(exc)
         finally:
-            builtins.input = _original_input
             login_done.set()
 
     thread = threading.Thread(target=do_login, daemon=True)
