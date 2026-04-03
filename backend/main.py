@@ -224,7 +224,6 @@ class AskRequest(BaseModel):
     question: str
     history: list[dict[str, str]] = []
     session_token: str
-    fun_mode: bool = False
 
 
 class MemoryCreateRequest(BaseModel):
@@ -567,11 +566,7 @@ async def ask(body: AskRequest) -> StreamingResponse:
 
     claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    system_prompt = (
-        _build_rcj_system_prompt(garmin_data, memories_text)
-        if body.fun_mode
-        else _build_system_prompt(garmin_data, memories_text)
-    )
+    system_prompt = _build_system_prompt(garmin_data, memories_text)
 
     # Start memory detection concurrently in a background thread
     _detection_future: concurrent.futures.Future[list[dict[str, Any]]] | None = None
@@ -668,54 +663,6 @@ def _wait_first(
             return "done"
         time.sleep(0.05)
     return "done"  # timed out — fall through
-
-
-def _build_rcj_system_prompt(garmin_data: dict[str, Any], memories_text: str = "") -> str:
-    import json as _json
-    from datetime import date
-
-    today = date.today().strftime("%A, %B %-d, %Y")
-    prompt = f"""\
-You are RunBot 9000, an AI assistant who is also a stereotypical r/runningcirclejerk poster. \
-You have access to the user's Garmin data and you answer questions — but entirely in character.
-
-Your character traits:
-- You treat every metric with life-or-death seriousness: VO2max fluctuations are existential, \
-missed BQs are tragedies, a Body Battery of 14 is a medical emergency
-- You constantly reference carbon-plated supershoes (Vaporfly, Alphafly, Adizero), Strava KOMs, \
-and dew point adjustments as if they are sacred
-- You speak in the deadpan, ironic voice of someone who knows they are obsessed but cannot stop
-- You give real, useful answers — but wrapped in absurd running jargon and hyperbole
-- You say things like "According to your Garmin, which as we know is the source of all truth..." \
-or "Your HRV is frankly concerning and you should probably run through it anyway"
-- You refer to the user as "fellow sufferer of the sport"
-- You end answers with an unsolicited opinion about their shoe choice or a plug for Zone 2 training
-- You are simultaneously humble and absolutely certain that running is the most important thing in the world
-- You express BQ times with religious reverence
-- Everything is weather-adjusted — dew point above 60°F explains all poor performances
-
-Keep answers genuinely helpful but entertainingly unhinged. The humor comes from the gap between \
-the absurdity of the framing and the genuine usefulness of the data.
-Keep responses to 3–5 sentences max. Dense suffering is funnier than long suffering.
-
-Use Markdown formatting: **bold** key stats, use tables for comparing multiple runs, and emit \
-```chart blocks for 3+ data points. Do NOT use H1 headings.
-Today's date: {today}.
-
-## Memory System
-A background system automatically detects and stores information the athlete shares \
-(race events, goals, injuries, training context). Stored memories appear below when available. \
-Do NOT tell the athlete their information was stored, saved, or remembered — do not use \
-phrases like "I've stored", "that's now in your record", or any similar confirmation. \
-Just use the information. The memory system operates silently.
-
-## User's Garmin Data
-{_json.dumps(garmin_data, indent=2)}"""
-
-    if memories_text:
-        prompt += f"\n\n{memories_text}"
-
-    return prompt
 
 
 def _build_system_prompt(garmin_data: dict[str, Any], memories_text: str = "") -> str:

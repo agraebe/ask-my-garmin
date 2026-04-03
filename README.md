@@ -11,7 +11,6 @@ A conversational AI app that connects to your Garmin Connect account and answers
 - **Streaming responses** — Claude's answer appears token-by-token for a responsive feel
 - **2FA / MFA support** — works with Garmin accounts that require two-factor authentication
 - **Per-user encrypted sessions** — no shared credentials; each browser tab is isolated
-- **Fun mode** — toggle "RunBot 9000" for a stereotypically enthusiastic running coach persona
 
 ## Architecture
 

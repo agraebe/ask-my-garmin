@@ -43,7 +43,6 @@ function formatMemoryNotification(event: MemoryStoredEvent): string {
 }
 
 interface Props {
-  funMode?: boolean;
   isConnected: boolean;
   onLoginRequired: (question: string) => void;
   onMemoryStored?: () => void;
@@ -52,7 +51,6 @@ interface Props {
 }
 
 export default function ChatInterface({
-  funMode = false,
   isConnected,
   onLoginRequired,
   onMemoryStored,
@@ -103,7 +101,6 @@ export default function ChatInterface({
             question,
             history: messages, // send history before the new user message
             session_token: sessionToken,
-            fun_mode: funMode,
           }),
         });
 
@@ -152,7 +149,7 @@ export default function ChatInterface({
         inputRef.current?.focus();
       }
     },
-    [messages, isStreaming, funMode, isConnected, onLoginRequired, onMemoryStored]
+    [messages, isStreaming, isConnected, onLoginRequired, onMemoryStored]
   );
 
   // Keep the ref in sync so the auto-send effect never closes over a stale sendMessage
@@ -180,15 +177,15 @@ export default function ChatInterface({
     }
   };
 
-  const accentFocus = funMode ? 'focus:ring-rcj' : 'focus:ring-garmin-blue';
-  const accentButton = funMode ? 'bg-rcj' : 'bg-garmin-blue';
+  const accentFocus = 'focus:ring-garmin-blue';
+  const accentButton = 'bg-garmin-blue';
 
   return (
     <div className="flex h-full flex-col">
       {/* Message list */}
       <div className="chat-scroll flex-1 overflow-y-auto px-3 py-4 sm:px-6">
         {messages.length === 0 ? (
-          <SuggestedQuestions onSelect={(q) => sendMessage(q)} funMode={funMode} />
+          <SuggestedQuestions onSelect={(q) => sendMessage(q)} />
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-4">
             {messages.map((msg, i) => {

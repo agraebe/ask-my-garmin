@@ -39,8 +39,3 @@ test('send button enables when user types', async ({ page }) => {
   await page.getByPlaceholder(/ask about your activities/i).fill('Hello');
   await expect(page.getByRole('button', { name: /send/i })).toBeEnabled();
 });
-
-test('Fun Mode toggle is visible', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: /fun mode/i })).toBeVisible();
-});

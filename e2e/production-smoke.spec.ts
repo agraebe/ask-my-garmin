@@ -111,7 +111,6 @@ test.describe('2. Auth + Data + Chat (API)', () => {
         question: SMOKE_QUESTION,
         history: [],
         session_token: sessionToken,
-        fun_mode: false,
       },
       timeout: 90_000,
     });

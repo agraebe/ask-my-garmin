@@ -21,7 +21,6 @@ const config: Config = {
           'text-muted': '#8FA8BF',
           green: '#4BC56D',
         },
-        rcj: '#FF6B35',
       },
     },
   },

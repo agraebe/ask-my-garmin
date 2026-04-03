@@ -8,8 +8,6 @@ import MemoryPanel from '@/components/MemoryPanel';
 
 type AuthState = 'loading' | 'connected' | 'disconnected';
 
-const FUN_MODE_KEY = 'ask_my_garmin_fun_mode';
-
 // Garmin-inspired navigation arrow icon
 function GarminIcon() {
   return (
@@ -45,7 +43,6 @@ export default function Home() {
   const [showLogin, setShowLogin] = useState(false);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
-  const [funMode, setFunMode] = useState<boolean>(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   const checkStatus = useCallback(async () => {
@@ -71,10 +68,6 @@ export default function Home() {
     checkStatus();
   }, [checkStatus]);
 
-  useEffect(() => {
-    setFunMode(localStorage.getItem(FUN_MODE_KEY) === 'true');
-  }, []);
-
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('garmin_session');
@@ -90,12 +83,6 @@ export default function Home() {
     checkStatus(); // background: fills in the email display
   }
 
-  function toggleFunMode() {
-    const next = !funMode;
-    setFunMode(next);
-    localStorage.setItem(FUN_MODE_KEY, String(next));
-  }
-
   const isLoading = authState === 'loading';
   const isConnected = authState === 'connected';
 
@@ -104,30 +91,13 @@ export default function Home() {
       <header className="flex-shrink-0 border-b border-garmin-border bg-garmin-surface px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-lg text-white ${funMode ? 'bg-rcj' : 'bg-garmin-blue'}`}
-            >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-garmin-blue text-white">
               <GarminIcon />
             </div>
-            <h1 className="text-lg font-semibold text-garmin-text">
-              {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
-            </h1>
+            <h1 className="text-lg font-semibold text-garmin-text">Ask My Garmin</h1>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleFunMode}
-              aria-pressed={funMode}
-              title={funMode ? 'Disable Fun Mode' : 'Enable Fun Mode'}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                funMode
-                  ? 'bg-rcj text-white'
-                  : 'border border-garmin-border bg-garmin-surface-2 text-garmin-text-muted hover:border-garmin-blue hover:text-garmin-text'
-              }`}
-            >
-              {funMode ? '🔥 RCJ Mode' : '🏃 Fun Mode'}
-            </button>
-
             {isConnected && (
               <button
                 onClick={() => setShowMemoryPanel(true)}
@@ -176,7 +146,6 @@ export default function Home() {
 
       <div className="w-full flex-1 overflow-hidden">
         <ChatInterface
-          funMode={funMode}
           isConnected={isConnected}
           onLoginRequired={(q) => {
             setPendingQuestion(q);

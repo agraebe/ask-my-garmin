@@ -84,10 +84,3 @@ test('clicking a suggested question sends it as a message', async ({ page }) => 
     timeout: 5000,
   });
 });
-
-test('Fun Mode toggle switches to RunBot 9000 branding', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /fun mode/i }).click();
-
-  await expect(page.getByRole('heading', { name: 'RunBot 9000', level: 1 })).toBeVisible();
-});

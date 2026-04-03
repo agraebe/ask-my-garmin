@@ -17,28 +17,12 @@ const SUGGESTIONS = [
   'What heart rate zones should I be training in?',
 ];
 
-const RCJ_SUGGESTIONS = [
-  'My Vaporfly 3s have 412 miles on them. Should I retire them or is this character-building?',
-  "My Garmin says 'Body Battery: 14'. Should I cancel my 20-miler or just ignore it?",
-  'I missed my BQ by 8 seconds. Is my life over, or just mostly over?',
-  'How many gels should I take for a 5K? I usually do 2 but considering 3.',
-  'Someone stole my Strava KOM. What training block do I need to take it back?',
-  "My VDOT says I should run 3:42 but in my heart I know I'm a 3:28 person. Who's right?",
-  'The dew point was 68°F. What was my "real" pace adjusted for optimal conditions?',
-  'My HRV this morning was 43. My coach says run. My Garmin says rest. Who wins?',
-  'If I do a run and forget to start my Garmin, did it still count?',
-  "I have taper madness and think I've developed 4 new injuries this week. Are any real?",
-  'My easy run pace was 8:32. Is that Zone 2 or am I secretly a slow elite?',
-  "My physio said 6 weeks off. What's a good 6-week training block I can do instead?",
-];
-
 // Card width + gap in px — must match the Tailwind classes below
 const CARD_W = 288; // w-72
 const GAP = 16; // gap-4
 
 interface Props {
   onSelect: (question: string) => void;
-  funMode?: boolean;
 }
 
 function ActivityIcon() {
@@ -83,8 +67,8 @@ function ChevronRight() {
   );
 }
 
-export default function SuggestedQuestions({ onSelect, funMode = false }: Props) {
-  const suggestions = funMode ? RCJ_SUGGESTIONS : SUGGESTIONS;
+export default function SuggestedQuestions({ onSelect }: Props) {
+  const suggestions = SUGGESTIONS;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -108,10 +92,8 @@ export default function SuggestedQuestions({ onSelect, funMode = false }: Props)
     });
   }
 
-  const accentHover = funMode
-    ? 'hover:border-rcj hover:bg-garmin-surface-2'
-    : 'hover:border-garmin-blue hover:bg-garmin-surface-2';
-  const accentBg = funMode ? 'bg-rcj' : 'bg-garmin-blue';
+  const accentHover = 'hover:border-garmin-blue hover:bg-garmin-surface-2';
+  const accentBg = 'bg-garmin-blue';
 
   return (
     <div className="flex flex-col items-center gap-10 pb-8 pt-20">
@@ -122,13 +104,9 @@ export default function SuggestedQuestions({ onSelect, funMode = false }: Props)
         >
           <ActivityIcon />
         </div>
-        <h2 className="text-2xl font-semibold text-garmin-text">
-          {funMode ? 'RunBot 9000' : 'Ask My Garmin'}
-        </h2>
+        <h2 className="text-2xl font-semibold text-garmin-text">Ask My Garmin</h2>
         <p className="mt-2 text-sm text-garmin-text-muted">
-          {funMode
-            ? "What does your Garmin say? (It's probably fine.)"
-            : 'Get personalized training insights from your Garmin data using AI.'}
+          Get personalized training insights from your Garmin data using AI.
         </p>
       </div>
 

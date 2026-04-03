@@ -1,0 +1,52 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "steer hook pre-tool-use"
+          }
+        ],
+        "description": "Steer: Observe tool calls and check product guidelines"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "steer hook post-tool-use"
+          }
+        ],
+        "description": "Steer: Record tool results for decision classification"
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "steer hook stop"
+          }
+        ],
+        "description": "Steer: Process session transcript for decision extraction"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "steer hook subagent-stop"
+          }
+        ],
+        "description": "Steer: Capture subagent decisions"
+      }
+    ]
+  }
+}
