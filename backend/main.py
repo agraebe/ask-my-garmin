@@ -254,7 +254,11 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
       {"status": "ok", "session_token": "..."}           — login succeeded
       {"status": "mfa_required", "session_id": "..."}    — 2FA code needed
     """
-    ip = request.client.host if request.client else "unknown"
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+        request.headers.get("X-Real-IP") or
+        (request.client.host if request.client else "unknown")
+    )
     _check_rate_limit(ip)
 
     session_id = str(uuid.uuid4())

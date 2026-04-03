@@ -38,3 +38,8 @@ backend/.venv/
 
 # misc
 .DS_Store
+.vercel
+.env*.local
+
+# Steer local data
+.steer/
