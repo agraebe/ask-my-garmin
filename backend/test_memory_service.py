@@ -38,7 +38,7 @@ def _sha256(value: str) -> str:
 
 
 class TestGetUserIdHashPrimaryPath:
-    def test_returns_hash_of_user_id_from_profile(self):
+    def test_returns_hash_of_user_id_from_social_profile(self):
         client = _make_client()
         client.connectapi = MagicMock(return_value={"userId": 12345678})
 
@@ -46,9 +46,9 @@ class TestGetUserIdHashPrimaryPath:
 
         assert result == _sha256("12345678")
 
-    def test_profile_with_string_user_id(self):
+    def test_social_profile_with_profile_id_field(self):
         client = _make_client()
-        client.connectapi = MagicMock(return_value={"userId": "99999999"})
+        client.connectapi = MagicMock(return_value={"profileId": "99999999"})
 
         result = get_user_id_hash(client)
 
@@ -56,7 +56,7 @@ class TestGetUserIdHashPrimaryPath:
 
 
 class TestGetUserIdHashDiTokenFallback:
-    def test_falls_back_to_di_token_jwt_sub_when_profile_fails(self):
+    def test_falls_back_to_di_token_jwt_sub_when_all_profile_apis_fail(self):
         di_tok = _make_jwt("user-sub-abc123")
         client = _make_client(di_token=di_tok)
         client.connectapi = MagicMock(side_effect=Exception("API error"))
@@ -65,9 +65,10 @@ class TestGetUserIdHashDiTokenFallback:
 
         assert result == _sha256("user-sub-abc123")
 
-    def test_falls_back_to_di_token_jwt_sub_when_profile_returns_no_user_id(self):
+    def test_falls_back_to_di_token_jwt_sub_when_profiles_return_no_user_id(self):
         di_tok = _make_jwt("user-sub-xyz")
         client = _make_client(di_token=di_tok)
+        # Both profile endpoints return data but no userId
         client.connectapi = MagicMock(return_value={"emailAddress": "runner@example.com"})
 
         result = get_user_id_hash(client)
@@ -91,12 +92,12 @@ class TestGetUserIdHashDiTokenFallback:
 
 
 class TestGetUserIdHashAlternateProfileEndpoint:
-    def test_falls_back_to_userprofile_endpoint(self):
-        """If personal-information has no userId, try /userprofile."""
+    def test_falls_back_to_personal_information_endpoint(self):
+        """If socialProfile has no userId, try personal-information."""
         client = _make_client()
         client.connectapi = MagicMock(side_effect=[
-            {"displayName": "runner"},  # personal-information — no userId
-            {"userId": 55555555},       # /userprofile — has userId
+            {"displayName": "runner"},  # socialProfile — no userId
+            {"userId": 55555555},       # personal-information — has userId
         ])
 
         result = get_user_id_hash(client)

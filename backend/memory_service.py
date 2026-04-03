@@ -83,25 +83,28 @@ def get_user_id_hash(client: Any) -> str:
       3. JWT sub claim from di_token (only if di_token is a JWT)
       4. di_token itself as an opaque stable identifier (last resort)
     """
-    # 1. Primary: personal-information endpoint
+    # 1. Primary: socialProfile endpoint (used by garminconnect library itself)
+    try:
+        social = client.connectapi("/userprofile-service/socialProfile")
+        social = social or {}
+        user_id = str(social.get("userId", "") or social.get("profileId", "") or social.get("id", ""))
+        if user_id:
+            logger.info("get_user_id_hash: resolved via socialProfile userId=%s", user_id)
+            return hashlib.sha256(user_id.encode()).hexdigest()
+        logger.warning("socialProfile returned no userId/profileId; keys=%s", list(social.keys()))
+    except Exception as exc:
+        logger.warning("socialProfile API failed: %s", exc)
+
+    # 2. personal-information endpoint
     try:
         profile = client.connectapi("/userprofile-service/userprofile/personal-information")
-        user_id = str((profile or {}).get("userId", ""))
+        profile = profile or {}
+        user_id = str(profile.get("userId", "") or profile.get("userProfileId", ""))
         if user_id:
             return hashlib.sha256(user_id.encode()).hexdigest()
-        logger.warning("personal-information returned no userId; trying /userprofile")
+        logger.warning("personal-information returned no userId; keys=%s", list(profile.keys()))
     except Exception as exc:
         logger.warning("personal-information API failed: %s", exc)
-
-    # 2. Alternate profile endpoint
-    try:
-        profile2 = client.connectapi("/userprofile-service/userprofile")
-        user_id = str((profile2 or {}).get("userId", ""))
-        if user_id:
-            return hashlib.sha256(user_id.encode()).hexdigest()
-        logger.warning("/userprofile returned no userId; trying di_token")
-    except Exception as exc:
-        logger.warning("/userprofile API failed: %s", exc)
 
     di_token = getattr(client, "di_token", None) or ""
 
