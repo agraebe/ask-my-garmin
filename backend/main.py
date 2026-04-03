@@ -287,7 +287,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, Any]:
         try:
             garmin = Garmin(body.email, body.password, prompt_mfa=_prompt_mfa)
             garmin.login()  # no tokenstore — keeps tokens in memory only
-            session["token_json"] = _serialize_garth_client(garmin.garth)
+            session["token_json"] = _serialize_garth_client(garmin.client)
             session["success"] = True
         except Exception as exc:
             session["error"] = str(exc)
